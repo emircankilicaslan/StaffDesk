@@ -1,12 +1,13 @@
 package com.staffdesk.api;
 
+import com.staffdesk.api.Dtos.DecisionRequest;
 import com.staffdesk.api.Dtos.LeaveCreateRequest;
 import com.staffdesk.api.Dtos.LeaveView;
 import com.staffdesk.domain.LeaveStatus;
 import com.staffdesk.service.LeaveService;
 import jakarta.validation.Valid;
-import java.util.List;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,8 +38,10 @@ class LeaveController {
     }
 
     @GetMapping("/mine")
-    List<LeaveView> mine(@AuthenticationPrincipal Jwt jwt) {
-        return leaves.mine(CurrentUser.from(jwt).id());
+    Page<LeaveView> mine(@AuthenticationPrincipal Jwt jwt, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return leaves.mine(CurrentUser.from(jwt).id(),
+                EmployeeController.pageable(page, size, Sort.by(Sort.Direction.DESC, "startDate").and(Sort.by("id"))));
     }
 
     @GetMapping
@@ -50,14 +53,16 @@ class LeaveController {
 
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
-    LeaveView approve(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
-        return leaves.approve(id, CurrentUser.from(jwt));
+    LeaveView approve(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id,
+            @Valid @RequestBody(required = false) DecisionRequest body) {
+        return leaves.approve(id, CurrentUser.from(jwt), body == null ? null : body.note());
     }
 
     @PostMapping("/{id}/reject")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
-    LeaveView reject(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
-        return leaves.reject(id, CurrentUser.from(jwt));
+    LeaveView reject(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id,
+            @Valid @RequestBody(required = false) DecisionRequest body) {
+        return leaves.reject(id, CurrentUser.from(jwt), body == null ? null : body.note());
     }
 
     @PostMapping("/{id}/cancel")

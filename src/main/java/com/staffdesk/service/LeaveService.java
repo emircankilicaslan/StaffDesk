@@ -15,7 +15,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Set;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -109,8 +108,8 @@ public class LeaveService {
     }
 
     @Transactional(readOnly = true)
-    public List<LeaveView> mine(Long employeeId) {
-        return leaves.findByEmployeeIdOrderByStartDateDesc(employeeId).stream().map(this::toView).toList();
+    public Page<LeaveView> mine(Long employeeId, Pageable pageable) {
+        return leaves.findByEmployeeId(employeeId, pageable).map(this::toView);
     }
 
     /** Yönetici tüm talepleri, müdür yalnızca kendi birimindekileri görür. */
@@ -128,16 +127,16 @@ public class LeaveService {
     }
 
     @Transactional
-    public LeaveView approve(Long id, CurrentUser decider) {
+    public LeaveView approve(Long id, CurrentUser decider, String note) {
         LeaveRequest l = decidable(id, decider);
-        l.approve(decider.id(), LocalDateTime.now(clock));
+        l.approve(decider.id(), note, LocalDateTime.now(clock));
         return toView(l);
     }
 
     @Transactional
-    public LeaveView reject(Long id, CurrentUser decider) {
+    public LeaveView reject(Long id, CurrentUser decider, String note) {
         LeaveRequest l = decidable(id, decider);
-        l.reject(decider.id(), LocalDateTime.now(clock));
+        l.reject(decider.id(), note, LocalDateTime.now(clock));
         return toView(l);
     }
 
@@ -170,6 +169,6 @@ public class LeaveService {
     private LeaveView toView(LeaveRequest l) {
         return new LeaveView(l.getId(), l.getEmployee().getId(), l.getEmployee().getFullName(), l.getType(),
                 l.getStartDate(), l.getEndDate(), l.getBusinessDays(), l.getStatus(), l.getReason(), l.getDecidedBy(),
-                l.getDecidedAt());
+                l.getDecidedAt(), l.getDecisionNote());
     }
 }

@@ -4,7 +4,6 @@ import com.staffdesk.domain.LeaveRequest;
 import com.staffdesk.domain.LeaveStatus;
 import java.time.LocalDate;
 import java.util.Collection;
-import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -34,7 +33,7 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
     long sumAnnualDays(@Param("employeeId") Long employeeId, @Param("status") LeaveStatus status,
             @Param("from") LocalDate from, @Param("to") LocalDate to);
 
-    List<LeaveRequest> findByEmployeeIdOrderByStartDateDesc(Long employeeId);
+    Page<LeaveRequest> findByEmployeeId(Long employeeId, Pageable pageable);
 
     Page<LeaveRequest> findByStatus(LeaveStatus status, Pageable pageable);
 

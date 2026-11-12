@@ -49,7 +49,10 @@ public final class Dtos {
 
     public record LeaveView(Long id, Long employeeId, String employeeName, LeaveType type, LocalDate startDate,
             LocalDate endDate, int businessDays, LeaveStatus status, String reason, Long decidedBy,
-            LocalDateTime decidedAt) {}
+            LocalDateTime decidedAt, String decisionNote) {}
+
+    /** Onay/red kararına isteğe bağlı gerekçe. */
+    public record DecisionRequest(@Size(max = 500) String note) {}
 
     public record LeaveBalance(int year, int entitlement, long used, long pending, long remaining) {}
 

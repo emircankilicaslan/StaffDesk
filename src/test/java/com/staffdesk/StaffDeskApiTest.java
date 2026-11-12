@@ -124,6 +124,14 @@ class StaffDeskApiTest {
     }
 
     @Test
+    void openApiDeclaresBearerSchemeForSwaggerAuthorize() throws Exception {
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme", is("bearer")))
+                .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.bearerFormat", is("JWT")));
+    }
+
+    @Test
     void employeesCannotUseAdminEndpoints() throws Exception {
         String emp = (String) newEmployee("EMPLOYEE", dept, "2020-01-15")[1];
 
@@ -197,7 +205,14 @@ class StaffDeskApiTest {
         call(post("/api/leaves"), emp, leave("ANNUAL", "2034-12-04", "2034-12-08")).andExpect(status().isConflict());
         call(post("/api/leaves"), emp, leave("ANNUAL", "2035-03-05", "2035-03-01")).andExpect(status().isConflict());
 
-        call(get("/api/leaves/mine"), emp, null).andExpect(status().isOk()).andExpect(jsonPath("$.length()", is(2)));
+        call(get("/api/leaves/mine"), emp, null).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()", is(2)))
+                .andExpect(jsonPath("$.page.totalElements", is(2)))
+                .andExpect(jsonPath("$.content[0].startDate", is("2035-01-29"))); // en yeni başlangıç önce
+        call(get("/api/leaves/mine?size=1&page=1"), emp, null)
+                .andExpect(jsonPath("$.content.length()", is(1)))
+                .andExpect(jsonPath("$.content[0].startDate", is("2035-01-08")));
+        call(get("/api/leaves/mine?size=0"), emp, null).andExpect(status().isBadRequest());
     }
 
     @Test
@@ -257,6 +272,24 @@ class StaffDeskApiTest {
         // ikinci karar ve onaylanmış izni iptal: iş kuralı ihlali
         call(post("/api/leaves/" + leaveId + "/reject"), manager, null).andExpect(status().isConflict());
         call(post("/api/leaves/" + leaveId + "/cancel"), empToken, null).andExpect(status().isConflict());
+    }
+
+    @Test
+    void decisionNoteIsStoredAndValidated() throws Exception {
+        String emp = (String) newEmployee("EMPLOYEE", dept, "2020-01-15")[1];
+        long rejected = idOf(call(post("/api/leaves"), emp, leave("EXCUSE", "2035-01-22", "2035-01-22")).andExpect(status().isCreated()));
+        long approved = idOf(call(post("/api/leaves"), emp, leave("EXCUSE", "2035-01-23", "2035-01-23")).andExpect(status().isCreated()));
+
+        call(post("/api/leaves/" + rejected + "/reject"), admin, Map.of("note", "Dönem yoğunluğu nedeniyle uygun değil"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("REJECTED")))
+                .andExpect(jsonPath("$.decisionNote", is("Dönem yoğunluğu nedeniyle uygun değil")));
+        // gövdesiz onay hâlâ çalışır, not boş kalır
+        call(post("/api/leaves/" + approved + "/approve"), admin, null)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.decisionNote").doesNotExist());
+        // çok uzun gerekçe reddedilir
+        long third = idOf(call(post("/api/leaves"), emp, leave("EXCUSE", "2035-01-24", "2035-01-24")).andExpect(status().isCreated()));
+        call(post("/api/leaves/" + third + "/reject"), admin, Map.of("note", "x".repeat(501))).andExpect(status().isBadRequest());
     }
 
     @Test

@@ -91,9 +91,13 @@ class EmployeeController {
     }
 
     static PageRequest pageable(int page, int size) {
+        return pageable(page, size, Sort.by("id"));
+    }
+
+    static PageRequest pageable(int page, int size, Sort sort) {
         if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
             throw new IllegalArgumentException("page >= 0 ve 1 <= size <= " + MAX_PAGE_SIZE + " olmalı");
         }
-        return PageRequest.of(page, size, Sort.by("id"));
+        return PageRequest.of(page, size, sort);
     }
 }

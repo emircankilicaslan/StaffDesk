@@ -22,22 +22,22 @@ class StateMachineTest {
     @Test
     void pendingLeaveCanBeApprovedOnce() {
         LeaveRequest l = pendingLeave();
-        l.approve(7L, NOW);
+        l.approve(7L, null, NOW);
 
         assertThat(l.getStatus()).isEqualTo(LeaveStatus.APPROVED);
         assertThat(l.getDecidedBy()).isEqualTo(7L);
-        assertThatThrownBy(() -> l.approve(7L, NOW)).isInstanceOf(BusinessRuleException.class);
-        assertThatThrownBy(() -> l.reject(7L, NOW)).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> l.approve(7L, null, NOW)).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> l.reject(7L, null, NOW)).isInstanceOf(BusinessRuleException.class);
         assertThatThrownBy(() -> l.cancel(NOW)).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test
     void rejectedLeaveCannotBeApproved() {
         LeaveRequest l = pendingLeave();
-        l.reject(7L, NOW);
+        l.reject(7L, null, NOW);
 
         assertThat(l.getStatus()).isEqualTo(LeaveStatus.REJECTED);
-        assertThatThrownBy(() -> l.approve(7L, NOW)).isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> l.approve(7L, null, NOW)).isInstanceOf(BusinessRuleException.class);
     }
 
     @Test

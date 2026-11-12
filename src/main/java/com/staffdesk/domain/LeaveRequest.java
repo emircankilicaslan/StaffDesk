@@ -53,6 +53,9 @@ public class LeaveRequest {
     @Column(name = "decided_at")
     private LocalDateTime decidedAt;
 
+    @Column(name = "decision_note", length = 500)
+    private String decisionNote;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -71,12 +74,12 @@ public class LeaveRequest {
 
     // Durum makinesi: yalnızca PENDING durumundaki talep karara bağlanabilir veya iptal edilebilir.
 
-    public void approve(Long deciderId, LocalDateTime now) {
-        decide(LeaveStatus.APPROVED, deciderId, now);
+    public void approve(Long deciderId, String note, LocalDateTime now) {
+        decide(LeaveStatus.APPROVED, deciderId, note, now);
     }
 
-    public void reject(Long deciderId, LocalDateTime now) {
-        decide(LeaveStatus.REJECTED, deciderId, now);
+    public void reject(Long deciderId, String note, LocalDateTime now) {
+        decide(LeaveStatus.REJECTED, deciderId, note, now);
     }
 
     public void cancel(LocalDateTime now) {
@@ -85,11 +88,12 @@ public class LeaveRequest {
         this.decidedAt = now;
     }
 
-    private void decide(LeaveStatus target, Long deciderId, LocalDateTime now) {
+    private void decide(LeaveStatus target, Long deciderId, String note, LocalDateTime now) {
         requirePending();
         this.status = target;
         this.decidedBy = deciderId;
         this.decidedAt = now;
+        this.decisionNote = note == null || note.isBlank() ? null : note.trim();
     }
 
     private void requirePending() {
@@ -136,5 +140,9 @@ public class LeaveRequest {
 
     public LocalDateTime getDecidedAt() {
         return decidedAt;
+    }
+
+    public String getDecisionNote() {
+        return decisionNote;
     }
 }

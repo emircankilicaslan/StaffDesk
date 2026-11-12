@@ -10,7 +10,7 @@ Kurumlarda personelin **yıllık izin/mazeret/hastalık izin** süreçlerini ve 
 - **Zimmet yönetimi:** demirbaş kaydı, personele zimmetleme, iade, kayıttan düşme; tüm geçmiş korunur, aynı demirbaş aynı anda iki kişiye verilemez.
 - **Roller ve yetki:** `ADMIN`, `MANAGER`, `EMPLOYEE`; müdür yalnızca kendi birimindeki personeli görür ve onaylar, kimse kendi talebini onaylayamaz.
 - **Raporlama:** birim bazında yıllık izin kullanımı (doğrudan SQL, `LEFT JOIN` + `GROUP BY`).
-- **JWT kimlik doğrulama**, BCrypt şifreleme, RFC 7807 hata yanıtları, doğrulama (Bean Validation), sayfalama, OpenAPI/Swagger (`/swagger-ui.html`), sağlık ucu (`/actuator/health`).
+- **JWT kimlik doğrulama**, BCrypt şifreleme, RFC 7807 hata yanıtları, doğrulama (Bean Validation), sayfalama, OpenAPI/Swagger (`/swagger-ui.html`, sağ üstteki **Authorize** düğmesiyle JWT girilebilir), sağlık ucu (`/actuator/health`).
 
 ## İş kuralları
 | Kural | Ayrıntı |
@@ -51,9 +51,9 @@ Tasarım kararları:
 | GET | `/api/employees/{id}/leave-balance?year=` | kendisi, yönetici, birim müdürü |
 | PATCH | `/api/employees/{id}/deactivate` | ADMIN |
 | POST | `/api/leaves` | giriş yapmış (kendi adına) |
-| GET | `/api/leaves/mine` | giriş yapmış |
+| GET | `/api/leaves/mine?page=&size=` | giriş yapmış (sayfalı, en yeni başlangıç önce) |
 | GET | `/api/leaves?status=PENDING` | ADMIN, MANAGER (birim kapsamlı) |
-| POST | `/api/leaves/{id}/approve`, `/reject` | ADMIN, MANAGER |
+| POST | `/api/leaves/{id}/approve`, `/reject` (isteğe bağlı `{"note": "..."}` gerekçesi) | ADMIN, MANAGER |
 | POST | `/api/leaves/{id}/cancel` | talep sahibi |
 | POST/GET | `/api/assets` | ADMIN / ADMIN, MANAGER |
 | POST | `/api/assets/{id}/assign`, `/return`, `/retire` | ADMIN |
@@ -77,7 +77,7 @@ Veritabanında hiç `ADMIN` yoksa, `ADMIN_EMAIL`/`ADMIN_PASSWORD` ile açılış
 
 ## Test ve CI
 ```bash
-mvn verify      # 34 test
+mvn verify      # 36 test
 ```
 - Birim testleri: hak ediş hesabı, iş günü hesabı, durum makineleri.
 - Uçtan uca testler (`MockMvc`, gerçek Spring bağlamı + Flyway + H2): kimlik doğrulama, rol/kapsam kontrolleri, izin kuralları (çakışma, bakiye, tatil, geçmiş tarih), onay akışı, zimmet yaşam döngüsü, rapor, doğrulama hataları.
