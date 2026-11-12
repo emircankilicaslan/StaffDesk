@@ -12,6 +12,15 @@ Kurumlarda personelin **yıllık izin/mazeret/hastalık izin** süreçlerini ve 
 - **Raporlama:** birim bazında yıllık izin kullanımı (doğrudan SQL, `LEFT JOIN` + `GROUP BY`).
 - **JWT kimlik doğrulama**, BCrypt şifreleme, RFC 7807 hata yanıtları, doğrulama (Bean Validation), sayfalama, OpenAPI/Swagger (`/swagger-ui.html`, sağ üstteki **Authorize** düğmesiyle JWT girilebilir), sağlık ucu (`/actuator/health`).
 
+## Ekran görüntüleri
+
+PostgreSQL üzerinde çalışan uygulamanın Swagger arayüzü (demo verisiyle). Sağ üstteki **Authorize** düğmesine `/api/auth/login` ile alınan token girilir:
+
+![Swagger arayüzü](docs/screenshots/swagger.jpg)
+
+Yönetici olarak çalıştırılan birim bazlı izin kullanım raporu (3 birim, onaylı izin günleri ve bekleyen talepler):
+
+![Birim raporu](docs/screenshots/birim-raporu.jpg)
 ## İş kuralları
 | Kural | Ayrıntı |
 |---|---|
