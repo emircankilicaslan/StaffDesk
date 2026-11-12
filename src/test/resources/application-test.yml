@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:staffdesk;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password: ""
+
+staffdesk:
+  bcrypt-strength: 4   # testler hızlı çalışsın (üretimde varsayılan 12)
+  jwt:
+    secret: test-icin-en-az-otuz-iki-karakterlik-gizli-anahtar-0123456789
+  holidays:
+    - 2035-01-17
+  admin:
+    email: admin@test.local
+    password: admin-password-123

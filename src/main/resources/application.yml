@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: staffdesk
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/staffdesk}
+    username: ${DB_USER:staffdesk}
+    password: ${DB_PASSWORD:staffdesk}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # şema yalnızca Flyway migrasyonlarıyla yönetilir; Hibernate yalnızca doğrular
+  flyway:
+    enabled: true
+
+staffdesk:
+  jwt:
+    # En az 32 karakter. Üretimde JWT_SECRET ortam değişkeniyle verilmelidir.
+    secret: ${JWT_SECRET:}
+    ttl-minutes: 480
+  # Resmi tatiller (örnek: sabit tarihli ulusal bayramlar). Dini bayramlar her yıl takvime göre eklenmelidir.
+  holidays:
+    - 2026-01-01
+    - 2026-04-23
+    - 2026-05-01
+    - 2026-05-19
+    - 2026-07-15
+    - 2026-08-30
+    - 2026-10-29
+  # Veritabanında hiç ADMIN yoksa açılışta bir yönetici oluşturulur (ikisi de verilirse).
+  admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+    full-name: Sistem Yöneticisi
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
