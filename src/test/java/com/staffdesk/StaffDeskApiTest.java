@@ -143,6 +143,23 @@ class StaffDeskApiTest {
     }
 
     @Test
+    void deactivatedEmployeesExistingTokenIsRejected() throws Exception {
+        Object[] e = newEmployee("EMPLOYEE", dept, "2020-01-15");
+        long id = (Long) e[0];
+        String token = (String) e[1];
+
+        call(get("/api/employees/me"), token, null).andExpect(status().isOk());
+
+        call(patch("/api/employees/" + id + "/deactivate"), admin, null).andExpect(status().isOk());
+
+        // Token'ın imzası ve süresi geçerli olsa da hesap pasifse istek reddedilir.
+        call(get("/api/employees/me"), token, null).andExpect(status().isUnauthorized());
+        call(get("/api/leaves/mine"), token, null).andExpect(status().isUnauthorized());
+        // Aktif hesaplar etkilenmez.
+        call(get("/api/employees/me"), admin, null).andExpect(status().isOk());
+    }
+
+    @Test
     void validationErrorsReturnProblemDetail() throws Exception {
         call(post("/api/employees"), admin, Map.of("registrationNo", "", "fullName", "A", "email", "bozuk",
                 "password", "kisa", "role", "EMPLOYEE", "hireDate", "2020-01-01"))
