@@ -5,10 +5,11 @@ spring:
     password: ""
 
 staffdesk:
-  bcrypt-strength: 4   # testler hızlı çalışsın (üretimde varsayılan 12)
+  bcrypt-strength: 4 # testler hızlı çalışsın (üretimde varsayılan 12)
   jwt:
     secret: test-icin-en-az-otuz-iki-karakterlik-gizli-anahtar-0123456789
   holidays:
+    - 2034-01-01 # 2034 takvimi tanımlı sayılsın (geriye dönük hastalık izni testleri)
     - 2035-01-17
   admin:
     email: admin@test.local

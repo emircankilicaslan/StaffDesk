@@ -51,6 +51,7 @@ public class LeaveService {
             throw new BusinessRuleException("Pasif personel izin talep edemez");
         }
         validateDates(r);
+        businessDays.requireCalendar(r.startDate(), r.endDate());
 
         int days = businessDays.count(r.startDate(), r.endDate());
         if (days == 0) {
