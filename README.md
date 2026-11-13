@@ -127,7 +127,7 @@ mvn verify      # 40 test
 - GitHub Actions her push ve pull request'te `mvn verify` çalıştırır.
 
 ## Bilinen sınırlar / sonraki adımlar
-Token yenileme ve iptal (revocation) yok; pasif yapılan personelin mevcut token'ı süresi dolana kadar geçerlidir. Giriş denemelerine hız sınırı yok. Resmi tatiller yapılandırmadan elle girilir. Bildirim (e-posta) ve dosya eki (rapor/belge) desteği yok.
+Token yenileme ve iptal (revocation) yok; pasif yapılan personelin mevcut token'ı süresi dolana kadar geçerlidir. Giriş denemeleri e-posta bazında sınırlıdır (art arda hatalı denemede geçici kilit), ancak sayaç bellekte tutulur ve yalnızca tek uygulama örneği için yeterlidir. Resmi tatiller yapılandırmadan elle girilir. Bildirim (e-posta) ve dosya eki (rapor/belge) desteği yok.
 
 ## Lisans
 
