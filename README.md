@@ -1,6 +1,6 @@
 # StaffDesk – Personel İzin ve Zimmet Yönetimi API'si
 
-![CI](https://github.com/emircankilicaslan/StaffDesk/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/emircankilicaslan/StaffDesk/actions/workflows/ci.yml/badge.svg) ![Lisans: MIT](https://img.shields.io/badge/Lisans-MIT-green.svg)
 
 Kurumlarda personelin **yıllık izin/mazeret/hastalık izin** süreçlerini ve **demirbaş zimmetlerini** yöneten REST API.
 **Java 21, Spring Boot 3, Spring Data JPA (Hibernate), Spring Security (JWT), Flyway, PostgreSQL, JUnit 5** ile geliştirildi.
@@ -95,3 +95,7 @@ mvn verify      # 36 test
 
 ## Bilinen sınırlar / sonraki adımlar
 Token yenileme ve iptal (revocation) yok; pasif yapılan personelin mevcut token'ı süresi dolana kadar geçerlidir. Giriş denemelerine hız sınırı yok. Resmi tatiller yapılandırmadan elle girilir. Bildirim (e-posta) ve dosya eki (rapor/belge) desteği yok.
+
+## Lisans
+
+Bu proje [MIT Lisansı](LICENSE) ile paylaşılmaktadır.
