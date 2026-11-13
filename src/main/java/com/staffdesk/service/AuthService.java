@@ -29,24 +29,31 @@ public class AuthService {
     private final JwtEncoder jwtEncoder;
     private final StaffDeskProperties props;
     private final Clock clock;
+    private final LoginAttemptLimiter limiter;
 
     public AuthService(EmployeeRepository employees, PasswordEncoder encoder, JwtEncoder jwtEncoder,
-            StaffDeskProperties props, Clock clock) {
+            StaffDeskProperties props, Clock clock, LoginAttemptLimiter limiter) {
         this.employees = employees;
         this.encoder = encoder;
         this.jwtEncoder = jwtEncoder;
         this.props = props;
         this.clock = clock;
+        this.limiter = limiter;
         this.dummyHash = encoder.encode("dummy-password");
     }
 
     @Transactional(readOnly = true)
     public TokenResponse login(LoginRequest request) {
-        Employee e = employees.findByEmailIgnoreCase(request.email().trim()).orElse(null);
+        String key = request.email().trim();
+        limiter.checkAllowed(key);
+
+        Employee e = employees.findByEmailIgnoreCase(key).orElse(null);
         boolean ok = encoder.matches(request.password(), e == null ? dummyHash : e.getPasswordHash());
         if (e == null || !ok || !e.isActive()) {
+            limiter.recordFailure(key);
             throw new BadCredentialsException("E-posta veya şifre hatalı");
         }
+        limiter.recordSuccess(key);
 
         Instant now = Instant.now(clock);
         Duration ttl = Duration.ofMinutes(props.jwt().ttlMinutes());
