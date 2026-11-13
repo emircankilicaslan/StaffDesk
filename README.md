@@ -12,7 +12,40 @@ Kurumlarda personelin **yıllık izin/mazeret/hastalık izin** süreçlerini ve 
 - **Raporlama:** birim bazında yıllık izin kullanımı (doğrudan SQL, `LEFT JOIN` + `GROUP BY`).
 - **JWT kimlik doğrulama**, BCrypt şifreleme, RFC 7807 hata yanıtları, doğrulama (Bean Validation), sayfalama, OpenAPI/Swagger (`/swagger-ui.html`, sağ üstteki **Authorize** düğmesiyle JWT girilebilir), sağlık ucu (`/actuator/health`).
 
-## Ekran görüntüleri
+## Web arayüzü
+Uygulama çalışırken kök adres (`/`) rol bazlı bir web arayüzü sunar. Ek bir derleme adımı yoktur; dosyalar `src/main/resources/static` altındadır (sade HTML, CSS ve JavaScript, harici bağımlılık yok).
+
+| Rol | Gördükleri |
+|---|---|
+| **Personel** | Genel bakış (izin bakiyesi halka grafiği), izin talebi ve iptali, üzerindeki zimmetler |
+| **Müdür** | Yukarıdakilere ek: kendi birimindeki talepler için onay kutusu (onayla / gerekçeyle reddet), birim personeli |
+| **Yönetici** | Personel ve birim ekleme, pasife alma, demirbaş ekleme / zimmetleme / iade / kayıttan düşme, birim bazlı izin kullanım raporu |
+
+Güvenlik: metinler `textContent` ile yazılır (`innerHTML` yok), sayfa `Content-Security-Policy` ile sunulur ve satır içi betik/stil kullanmaz; token `sessionStorage`'da tutulur ve sekme kapanınca silinir. Yetki kararları yine sunucuda verilir, arayüz yalnızca yetkili olunan seçenekleri gösterir.
+
+![Giriş ekranı](docs/screenshots/arayuz-giris.jpg)
+
+![Genel bakış: izin bakiyesi ve son talepler](docs/screenshots/arayuz-genel-bakis.jpg)
+
+![Müdür onay kutusu](docs/screenshots/arayuz-onay-kutusu.jpg)
+
+| Personel yönetimi | Demirbaş envanteri |
+|---|---|
+| ![Personel](docs/screenshots/arayuz-personel.jpg) | ![Demirbaşlar](docs/screenshots/arayuz-demirbas.jpg) |
+
+![Birim bazlı izin kullanım raporu](docs/screenshots/arayuz-rapor.jpg)
+
+| İzin talebi | Mobil görünüm |
+|---|---|
+| ![İzin talebi penceresi](docs/screenshots/arayuz-izin-talebi.jpg) | <img src="docs/screenshots/arayuz-mobil.jpg" width="260" alt="Mobil görünüm"> |
+
+**Denemek için:** uygulamayı Docker ile başlatın (aşağıda), ardından demo verisini yükleyin. Betik birimler, yedi personel, farklı durumlarda izin talepleri ve demirbaşlar oluşturur (Node 18+ gerekir):
+```bash
+ADMIN_EMAIL=<yönetici e-postası> ADMIN_PASSWORD=<yönetici şifresi> node scripts/demo-verisi.mjs
+```
+Oluşan demo kullanıcılarının (ör. `kerem.aydin@ornek.test` müdür, `zeynep.kaya@ornek.test` personel) ortak şifresi betiğin başında yazar; yalnızca yerel denemede kullanın.
+
+## API ekran görüntüleri
 
 PostgreSQL üzerinde çalışan uygulamanın Swagger arayüzü (demo verisiyle). Sağ üstteki **Authorize** düğmesine `/api/auth/login` ile alınan token girilir:
 
@@ -86,7 +119,7 @@ Veritabanında hiç `ADMIN` yoksa, `ADMIN_EMAIL`/`ADMIN_PASSWORD` ile açılış
 
 ## Test ve CI
 ```bash
-mvn verify      # 36 test
+mvn verify      # 40 test
 ```
 - Birim testleri: hak ediş hesabı, iş günü hesabı, durum makineleri.
 - Uçtan uca testler (`MockMvc`, gerçek Spring bağlamı + Flyway + H2): kimlik doğrulama, rol/kapsam kontrolleri, izin kuralları (çakışma, bakiye, tatil, geçmiş tarih), onay akışı, zimmet yaşam döngüsü, rapor, doğrulama hataları.

@@ -21,19 +21,31 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    private static final String CONTENT_SECURITY_POLICY =
+            "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, ActiveEmployeeJwtConverter jwtConverter) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable) // durumsuz (stateless) JWT API; çerez kullanılmaz
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .headers(h -> h.referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)))
+                .headers(h -> h
+                        .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                        // Web arayüzü yalnızca kendi kaynaklarını yükler. Swagger UI satır içi betik kullandığı için kapsam dışı.
+                        .addHeaderWriter(new DelegatingRequestMatcherHeaderWriter(
+                                request -> !request.getRequestURI().startsWith("/swagger-ui"),
+                                new StaticHeadersWriter("Content-Security-Policy", CONTENT_SECURITY_POLICY))))
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        // Statik web arayüzü (giriş sayfası dahil) kimlik doğrulamasız sunulur; veri uçları korumalıdır.
+                        .requestMatchers(HttpMethod.GET, "/", "/index.html", "/app.js", "/app.css", "/favicon.svg").permitAll()
                         .requestMatchers("/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                         .permitAll()
                         .anyRequest().authenticated())

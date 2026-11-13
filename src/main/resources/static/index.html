@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StaffDesk · Personel Portalı</title>
+  <meta name="description" content="İzin ve zimmet yönetimi için personel portalı">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <!-- Giriş -->
+  <div id="giris" class="giris" hidden>
+    <aside class="giris-tanitim">
+      <div class="logo"><span class="logo-isaret" aria-hidden="true"></span> StaffDesk</div>
+      <h1>İzin ve zimmet süreçleri, tek yerde.</h1>
+      <ul class="ozellik-listesi">
+        <li><strong>İzin talebi ve onay akışı</strong><span>İş günü hesabı, bakiye ve çakışma kontrolü otomatik.</span></li>
+        <li><strong>Zimmet takibi</strong><span>Demirbaş kimde, ne zamandan beri; tüm geçmiş saklanır.</span></li>
+        <li><strong>Rol bazlı yetki</strong><span>Müdür yalnızca kendi birimindeki personeli görür ve onaylar.</span></li>
+      </ul>
+    </aside>
+    <main class="giris-form-alani">
+      <form id="giris-form" class="giris-kart" autocomplete="on">
+        <h2>Giriş yap</h2>
+        <p class="soluk">Kurum e-posta adresinle devam et.</p>
+        <label>E-posta
+          <input name="email" type="email" autocomplete="username" required maxlength="254" placeholder="ad.soyad@kurum.com">
+        </label>
+        <label>Şifre
+          <input name="password" type="password" autocomplete="current-password" required placeholder="••••••••">
+        </label>
+        <p class="hata" id="giris-hata" role="alert" hidden></p>
+        <button class="dugme birincil genis" type="submit" id="giris-gonder">Giriş yap</button>
+      </form>
+    </main>
+  </div>
+
+  <!-- Uygulama -->
+  <div id="uygulama" class="uygulama" hidden>
+    <aside class="yan" id="yan">
+      <div class="logo"><span class="logo-isaret" aria-hidden="true"></span> StaffDesk</div>
+      <nav id="menu" aria-label="Ana menü"></nav>
+      <div class="kullanici-kart">
+        <div class="avatar" id="avatar" aria-hidden="true"></div>
+        <div class="kullanici-bilgi">
+          <strong id="kullanici-ad"></strong>
+          <span class="soluk" id="kullanici-rol"></span>
+        </div>
+        <button id="cikis" class="dugme ikincil kucuk" title="Çıkış yap">Çıkış</button>
+      </div>
+    </aside>
+
+    <div class="ana">
+      <header class="ust">
+        <button id="menu-ac" class="dugme ikincil kucuk menu-ac" aria-label="Menüyü aç">☰</button>
+        <div>
+          <h1 id="sayfa-baslik"></h1>
+          <p class="soluk" id="sayfa-alt"></p>
+        </div>
+        <div class="ust-eylem" id="ust-eylem"></div>
+      </header>
+      <p class="hata bildirim" id="genel-hata" role="alert" hidden></p>
+      <p class="basari bildirim" id="genel-basari" role="status" hidden></p>
+      <main id="icerik" class="icerik"></main>
+    </div>
+  </div>
+
+  <dialog id="dialog"><div id="dialog-icerik" class="dialog-icerik"></div></dialog>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
