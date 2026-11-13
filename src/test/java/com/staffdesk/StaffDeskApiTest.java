@@ -143,6 +143,61 @@ class StaffDeskApiTest {
     }
 
     @Test
+    void concurrentOverlappingLeaveRequestsOnlyOneSucceeds() throws Exception {
+        Object[] e = newEmployee("EMPLOYEE", dept, "2020-01-15");
+        String token = (String) e[1];
+
+        java.util.List<Map<String, Object>> bodies = new java.util.ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            bodies.add(leave("EXCUSE", "2035-01-22", "2035-01-23"));
+        }
+        java.util.List<Integer> statuses = postLeavesConcurrently(token, bodies);
+
+        org.junit.jupiter.api.Assertions.assertEquals(1, java.util.Collections.frequency(statuses, 201), statuses.toString());
+        org.junit.jupiter.api.Assertions.assertEquals(3, java.util.Collections.frequency(statuses, 409), statuses.toString());
+        call(get("/api/leaves/mine"), token, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.totalElements", is(1)));
+    }
+
+    @Test
+    void concurrentLeaveRequestsCannotExceedAnnualBalance() throws Exception {
+        // 2035 için 20 gün hak: 14 + 10 gün birlikte sığmaz, yalnız biri kabul edilir.
+        Object[] e = newEmployee("EMPLOYEE", dept, "2026-01-15");
+        String token = (String) e[1];
+
+        java.util.List<Map<String, Object>> bodies = java.util.List.of(
+                leave("ANNUAL", "2035-01-08", "2035-01-26"),
+                leave("ANNUAL", "2035-02-05", "2035-02-16"));
+        java.util.List<Integer> statuses = postLeavesConcurrently(token, bodies);
+
+        org.junit.jupiter.api.Assertions.assertEquals(1, java.util.Collections.frequency(statuses, 201), statuses.toString());
+        org.junit.jupiter.api.Assertions.assertEquals(1, java.util.Collections.frequency(statuses, 409), statuses.toString());
+    }
+
+    private java.util.List<Integer> postLeavesConcurrently(String token, java.util.List<Map<String, Object>> bodies) throws Exception {
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(bodies.size());
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        try {
+            java.util.List<java.util.concurrent.Future<Integer>> futures = new java.util.ArrayList<>();
+            for (Map<String, Object> body : bodies) {
+                futures.add(pool.submit(() -> {
+                    start.await();
+                    return call(post("/api/leaves"), token, body).andReturn().getResponse().getStatus();
+                }));
+            }
+            start.countDown();
+            java.util.List<Integer> statuses = new java.util.ArrayList<>();
+            for (java.util.concurrent.Future<Integer> f : futures) {
+                statuses.add(f.get(30, java.util.concurrent.TimeUnit.SECONDS));
+            }
+            return statuses;
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
     void deactivatedEmployeesExistingTokenIsRejected() throws Exception {
         Object[] e = newEmployee("EMPLOYEE", dept, "2020-01-15");
         long id = (Long) e[0];

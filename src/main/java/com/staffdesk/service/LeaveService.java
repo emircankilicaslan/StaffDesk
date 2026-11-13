@@ -46,7 +46,8 @@ public class LeaveService {
 
     @Transactional
     public LeaveView request(Long employeeId, LeaveCreateRequest r) {
-        Employee employee = employees.findById(employeeId).orElseThrow(() -> new NotFoundException("Personel bulunamadı"));
+        // Aynı personelin eş zamanlı talepleri sıraya girer: çakışma ve bakiye kontrolü yarışa açık kalmasın.
+        Employee employee = employees.findByIdForUpdate(employeeId).orElseThrow(() -> new NotFoundException("Personel bulunamadı"));
         if (!employee.isActive()) {
             throw new BusinessRuleException("Pasif personel izin talep edemez");
         }
