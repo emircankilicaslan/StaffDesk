@@ -34,9 +34,11 @@ public class LeaveService {
     private final BusinessDayCalculator businessDays;
     private final AccessPolicy access;
     private final Clock clock;
+    private final AuditService audit;
 
     public LeaveService(LeaveRequestRepository leaves, EmployeeRepository employees, BusinessDayCalculator businessDays,
-            AccessPolicy access, Clock clock) {
+            AccessPolicy access, Clock clock, AuditService audit) {
+        this.audit = audit;
         this.leaves = leaves;
         this.employees = employees;
         this.businessDays = businessDays;
@@ -71,6 +73,8 @@ public class LeaveService {
 
         LeaveRequest saved = leaves.save(new LeaveRequest(employee, r.type(), r.startDate(), r.endDate(), days,
                 r.reason(), LocalDateTime.now(clock)));
+        audit.record("LEAVE_REQUESTED", "LeaveRequest", saved.getId(),
+                r.type() + " · " + r.startDate() + " – " + r.endDate() + " · " + days + " iş günü");
         return toView(saved);
     }
 
@@ -132,6 +136,7 @@ public class LeaveService {
     public LeaveView approve(Long id, CurrentUser decider, String note) {
         LeaveRequest l = decidable(id, decider);
         l.approve(decider.id(), note, LocalDateTime.now(clock));
+        audit.record("LEAVE_APPROVED", "LeaveRequest", l.getId(), note);
         return toView(l);
     }
 
@@ -139,6 +144,7 @@ public class LeaveService {
     public LeaveView reject(Long id, CurrentUser decider, String note) {
         LeaveRequest l = decidable(id, decider);
         l.reject(decider.id(), note, LocalDateTime.now(clock));
+        audit.record("LEAVE_REJECTED", "LeaveRequest", l.getId(), note);
         return toView(l);
     }
 
@@ -149,6 +155,7 @@ public class LeaveService {
             throw new AccessDeniedException("Yalnızca kendi talebinizi iptal edebilirsiniz");
         }
         l.cancel(LocalDateTime.now(clock));
+        audit.record("LEAVE_CANCELLED", "LeaveRequest", l.getId(), null);
         return toView(l);
     }
 

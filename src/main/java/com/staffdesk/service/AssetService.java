@@ -29,9 +29,11 @@ public class AssetService {
     private final EmployeeRepository employees;
     private final AccessPolicy access;
     private final Clock clock;
+    private final AuditService audit;
 
     public AssetService(AssetRepository assets, AssetAssignmentRepository assignments, EmployeeRepository employees,
-            AccessPolicy access, Clock clock) {
+            AccessPolicy access, Clock clock, AuditService audit) {
+        this.audit = audit;
         this.assets = assets;
         this.assignments = assignments;
         this.employees = employees;
@@ -45,7 +47,9 @@ public class AssetService {
         if (assets.existsByAssetTag(tag)) {
             throw new BusinessRuleException("Bu demirbaş numarası zaten kayıtlı");
         }
-        return toView(assets.save(new Asset(tag, r.name().trim(), r.category().trim())));
+        Asset saved = assets.save(new Asset(tag, r.name().trim(), r.category().trim()));
+        audit.record("ASSET_CREATED", "Asset", saved.getId(), saved.getAssetTag() + " · " + saved.getName());
+        return toView(saved);
     }
 
     @Transactional(readOnly = true)
@@ -65,6 +69,7 @@ public class AssetService {
         }
         asset.markAssigned();
         AssetAssignment a = assignments.save(new AssetAssignment(asset, employee, LocalDateTime.now(clock), r.note()));
+        audit.record("ASSET_ASSIGNED", "Asset", asset.getId(), asset.getAssetTag() + " → " + employee.getEmail());
         return toView(a);
     }
 
@@ -75,6 +80,7 @@ public class AssetService {
         AssetAssignment open = assignments.findByAssetIdAndReturnedAtIsNull(assetId)
                 .orElseThrow(() -> new BusinessRuleException("Açık zimmet kaydı bulunamadı"));
         open.close(LocalDateTime.now(clock), r == null ? null : r.note());
+        audit.record("ASSET_RETURNED", "Asset", asset.getId(), asset.getAssetTag() + " ← " + open.getEmployee().getEmail());
         return toView(open);
     }
 
@@ -82,6 +88,7 @@ public class AssetService {
     public AssetView retire(Long assetId) {
         Asset asset = assets.findByIdForUpdate(assetId).orElseThrow(() -> new NotFoundException("Demirbaş bulunamadı"));
         asset.retire();
+        audit.record("ASSET_RETIRED", "Asset", asset.getId(), asset.getAssetTag());
         return toView(asset);
     }
 

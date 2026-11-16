@@ -177,3 +177,8 @@ dialog::backdrop { background: rgba(10, 15, 30, .55); backdrop-filter: blur(2px)
 .g-birincil { background: linear-gradient(90deg, var(--birincil), var(--mavi)); }
 code { font: .85em ui-monospace, Consolas, monospace; background: var(--birincil-acik); padding: .1rem .4rem; border-radius: 6px; }
 .icerik > *, .iki-sutun > * { min-width: 0; }
+
+/* Denetim kaydı süzgeç çubuğu */
+.arac-cubugu { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: 1rem; }
+.arac-cubugu input[type="search"] { flex: 1 1 14rem; max-width: 22rem; }
+.arac-cubugu select { flex: 0 1 14rem; }
