@@ -9,7 +9,8 @@ Kurumlarda personelin **yıllık izin/mazeret/hastalık izin** süreçlerini ve 
 - **İzin yönetimi:** talep → onay/red/iptal akışı; iş günü hesabı (hafta sonu ve resmi tatiller sayılmaz), çakışma kontrolü, yıllık izin bakiyesi ve hak ediş kuralı.
 - **Zimmet yönetimi:** demirbaş kaydı, personele zimmetleme, iade, kayıttan düşme; tüm geçmiş korunur, aynı demirbaş aynı anda iki kişiye verilemez.
 - **Roller ve yetki:** `ADMIN`, `MANAGER`, `EMPLOYEE`; müdür yalnızca kendi birimindeki personeli görür ve onaylar, kimse kendi talebini onaylayamaz.
-- **Raporlama:** birim bazında yıllık izin kullanımı (doğrudan SQL, `LEFT JOIN` + `GROUP BY`).
+- **Raporlama:** birim bazında yıllık izin kullanımı (doğrudan SQL, `LEFT JOIN` + `GROUP BY`); JSON ve **Excel (.xlsx)** olarak.
+- **Denetim kaydı (audit log):** giriş ve başarısız giriş, personel/birim ekleme, personel pasife alma, izin talep/onay/red/iptal ve zimmet işlemleri (ekleme, zimmetleme, iade, kayıttan düşme) kim tarafından ve ne zaman yapıldığıyla `audit_log` tablosuna yazılır. Yalnızca `ADMIN` sorgular (`/api/audit`: kullanıcı, işlem, tarih süzgeci, sayfalama) ve Excel'e aktarır. Kayıt, asıl değişiklikle **aynı veritabanı işleminde** yazılır (iş geri alınırsa kayıt da kalmaz); parola ve token kayda girmez. Excel çıktısında metin hücreleri düz metin yazılır, `=…` ile başlayan girdi formül olarak çalışmaz.
 - **JWT kimlik doğrulama**, BCrypt şifreleme, RFC 7807 hata yanıtları, doğrulama (Bean Validation), sayfalama, OpenAPI/Swagger (`/swagger-ui.html`, sağ üstteki **Authorize** düğmesiyle JWT girilebilir), sağlık ucu (`/actuator/health`).
 
 ## Web arayüzü
@@ -19,7 +20,7 @@ Uygulama çalışırken kök adres (`/`) rol bazlı bir web arayüzü sunar. Ek 
 |---|---|
 | **Personel** | Genel bakış (izin bakiyesi halka grafiği), izin talebi ve iptali, üzerindeki zimmetler |
 | **Müdür** | Yukarıdakilere ek: kendi birimindeki talepler için onay kutusu (onayla / gerekçeyle reddet), birim personeli |
-| **Yönetici** | Personel ve birim ekleme, pasife alma, demirbaş ekleme / zimmetleme / iade / kayıttan düşme, birim bazlı izin kullanım raporu |
+| **Yönetici** | Personel ve birim ekleme, pasife alma, demirbaş ekleme / zimmetleme / iade / kayıttan düşme, birim bazlı izin kullanım raporu (Excel indirme), denetim kaydı (süzgeç, sayfalama, Excel indirme) |
 
 Güvenlik: metinler `textContent` ile yazılır (`innerHTML` yok), sayfa `Content-Security-Policy` ile sunulur ve satır içi betik/stil kullanmaz; token `sessionStorage`'da tutulur ve sekme kapanınca silinir. Yetki kararları yine sunucuda verilir, arayüz yalnızca yetkili olunan seçenekleri gösterir.
 
@@ -34,6 +35,10 @@ Güvenlik: metinler `textContent` ile yazılır (`innerHTML` yok), sayfa `Conten
 | ![Personel](docs/screenshots/arayuz-personel.jpg) | ![Demirbaşlar](docs/screenshots/arayuz-demirbas.jpg) |
 
 ![Birim bazlı izin kullanım raporu](docs/screenshots/arayuz-rapor.jpg)
+
+![Denetim kaydı (yönetici)](docs/screenshots/arayuz-denetim-kaydi.jpg)
+
+Denetim kaydındaki saatler sunucunun yerel saatidir (Docker'da UTC).
 
 | İzin talebi | Mobil görünüm |
 |---|---|
@@ -64,6 +69,67 @@ Yönetici olarak çalıştırılan birim bazlı izin kullanım raporu (3 birim, 
 | Çakışma | Bekleyen/onaylı izinle çakışan talep reddedilir |
 | Durum akışı | `PENDING → APPROVED / REJECTED / CANCELLED`; yalnızca bekleyen talep üzerinde işlem yapılır |
 | Zimmet | `AVAILABLE → ASSIGNED → AVAILABLE`, `AVAILABLE → RETIRED` |
+
+## Veritabanı şeması
+
+```mermaid
+erDiagram
+    department ||--o{ employee : "personeli"
+    employee ||--o{ leave_request : "izin talepleri"
+    employee ||--o{ leave_request : "karar verdi (decided_by)"
+    employee ||--o{ asset_assignment : "zimmetleri"
+    asset ||--o{ asset_assignment : "zimmet geçmişi"
+    department {
+        bigint id PK
+        varchar100 name UK
+    }
+    employee {
+        bigint id PK
+        varchar20 registration_no UK
+        varchar254 email UK
+        varchar100 password_hash "BCrypt"
+        varchar20 role "ADMIN, MANAGER, EMPLOYEE"
+        bigint department_id FK
+        date hire_date
+        boolean active
+    }
+    leave_request {
+        bigint id PK
+        bigint employee_id FK
+        varchar20 leave_type "ANNUAL, SICK, EXCUSE"
+        date start_date
+        date end_date
+        int business_days "tatil ve hafta sonu hariç"
+        varchar20 status "PENDING, APPROVED, REJECTED, CANCELLED"
+        bigint decided_by FK
+        timestamp decided_at
+    }
+    asset {
+        bigint id PK
+        varchar50 asset_tag UK
+        varchar150 name
+        varchar20 status "AVAILABLE, ASSIGNED, RETIRED"
+    }
+    asset_assignment {
+        bigint id PK
+        bigint asset_id FK
+        bigint employee_id FK
+        timestamp assigned_at
+        timestamp returned_at "null = hâlâ zimmetli"
+    }
+    audit_log {
+        bigint id PK
+        timestamp occurred_at
+        bigint actor_id "yabancı anahtar değil"
+        varchar254 actor_label "e-posta"
+        varchar40 action
+        varchar30 entity_type
+        varchar40 entity_id
+        varchar500 details
+    }
+```
+
+`audit_log`, `employee` ile yabancı anahtarla bağlı değildir: işlemi yapanın e-postası kayıt anında metin olarak yazılır (başarısız girişte var olmayan bir e-posta da yazılabilir; personel pasife alınsa bile geçmiş kaydı anlamını korur). Şema yalnızca Flyway migrasyonlarıyla (`db/migration/V1..V3`) yönetilir.
 
 ## Mimari
 ```
@@ -100,7 +166,9 @@ Tasarım kararları:
 | POST/GET | `/api/assets` | ADMIN / ADMIN, MANAGER |
 | POST | `/api/assets/{id}/assign`, `/return`, `/retire` | ADMIN |
 | GET | `/api/employees/{id}/assets` | kendisi, yönetici, birim müdürü |
-| GET | `/api/reports/leave-usage?year=` | ADMIN |
+| GET | `/api/reports/leave-usage?year=`, `/api/reports/leave-usage.xlsx?year=` | ADMIN |
+| GET | `/api/audit?actor=&action=&from=&to=&page=&size=` | ADMIN |
+| GET | `/api/audit/export.xlsx` (aynı süzgeçler) | ADMIN |
 
 ## Çalıştırma
 Gereksinimler: Java 21, Maven, PostgreSQL (veya Docker).
@@ -119,15 +187,18 @@ Veritabanında hiç `ADMIN` yoksa, `ADMIN_EMAIL`/`ADMIN_PASSWORD` ile açılış
 
 ## Test ve CI
 ```bash
-mvn verify      # 40 test
+mvn verify      # 68 test
 ```
 - Birim testleri: hak ediş hesabı, iş günü hesabı, durum makineleri.
 - Uçtan uca testler (`MockMvc`, gerçek Spring bağlamı + Flyway + H2): kimlik doğrulama, rol/kapsam kontrolleri, izin kuralları (çakışma, bakiye, tatil, geçmiş tarih), onay akışı, zimmet yaşam döngüsü, rapor, doğrulama hataları.
-- Uygulama ayrıca gerçek PostgreSQL üzerinde (Flyway + Hibernate doğrulaması + rapor sorgusu) elle denenmiştir.
+- Denetim kaydı testleri: işlemlerin kullanıcı ve zamanla yazılması, izin akışında talep eden ve karar veren, başarısız girişin denenen e-postayla kaydı ve parolanın kayda girmemesi, yalnızca `ADMIN` erişimi, süzgeç/sayfalama/doğrulama, Excel çıktısında formül enjeksiyonu koruması.
+- Uygulama ayrıca gerçek PostgreSQL üzerinde (Flyway + Hibernate doğrulaması + rapor ve denetim sorguları + Excel çıktısı) elle denenmiştir.
 - GitHub Actions her push ve pull request'te `mvn verify` çalıştırır.
 
 ## Bilinen sınırlar / sonraki adımlar
-Token yenileme (refresh token) ve oturum kapatma (çıkışta token'ı geçersiz kılma) yok; token süresi dolana kadar kullanılır. Buna karşılık her istekte personelin durumu veritabanından yeniden okunduğu için pasife alınan ya da silinen personelin token'ı hemen reddedilir ve rol değişikliği anında yansır (`ActiveEmployeeJwtConverter`, `deactivatedEmployeesExistingTokenIsRejected` testi). Giriş denemeleri e-posta bazında sınırlıdır (art arda hatalı denemede geçici kilit), ancak sayaç bellekte tutulur ve yalnızca tek uygulama örneği için yeterlidir. Resmi tatiller yapılandırmadan elle girilir. Bildirim (e-posta) ve dosya eki (rapor/belge) desteği yok.
+Token yenileme (refresh token) ve oturum kapatma (çıkışta token'ı geçersiz kılma) yok; token süresi dolana kadar kullanılır. Buna karşılık her istekte personelin durumu veritabanından yeniden okunduğu için pasife alınan ya da silinen personelin token'ı hemen reddedilir ve rol değişikliği anında yansır (`ActiveEmployeeJwtConverter`, `deactivatedEmployeesExistingTokenIsRejected` testi). Giriş denemeleri e-posta bazında sınırlıdır (art arda hatalı denemede geçici kilit), ancak sayaç bellekte tutulur ve yalnızca tek uygulama örneği için yeterlidir. Resmi tatiller yapılandırmadan elle girilir. Bildirim (e-posta) ve dosya eki (belge) desteği yok; rapor yalnızca Excel olarak alınabilir (PDF yok).
+
+**Denetim kaydının sınırları:** Tablo uygulama tarafında yalnızca eklenir, ancak veritabanı düzeyinde güncelleme/silme engellenmemiştir (üretimde uygulama hesabına yalnızca `INSERT`/`SELECT` yetkisi verilmesi önerilir); saklama/arşivleme politikası yoktur. Giriş olayları ayrı bir işlemde yazılır (başarısız girişte istek hata ile bitse de kayıt kalır). Hız sınırı nedeniyle reddedilen (kilitli) giriş denemeleri kayda alınmaz; okuma istekleri de alınmaz.
 
 ## Lisans
 

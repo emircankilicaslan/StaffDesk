@@ -50,7 +50,10 @@ const IKONLAR = {
   zimmetim: () => ikon("M4 7h16v11a1 1 0 01-1 1H5a1 1 0 01-1-1z", "M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2"),
   zimmet: () => ikon("M3 7l9-4 9 4-9 4z", "M3 12l9 4 9-4", "M3 17l9 4 9-4"),
   rapor: () => ikon("M4 20V10", "M10 20V4", "M16 20v-7", "M22 20H2"),
+  denetim: () => ikon("M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2", "M9 3h6v4H9z", "M9 12h6", "M9 16h4"),
 };
+/** Spring Data sayfa bilgisi (totalElements, totalPages) yanıtta "page" altında döner. */
+const sayfaBilgisi = (veri) => veri.page ?? veri;
 const bosIkon = () => ikon("M4 4h16v16H4z", "M4 9h16", "M9 9v11");
 
 const rozet = (sinif, metin) => h("span", { class: `rozet r-${sinif.toLowerCase()}` }, metin);
@@ -89,6 +92,20 @@ async function api(yol, { yontem = "GET", govde } = {}) {
     throw new ApiHatasi(r.status, mesaj);
   }
   return r.status === 204 ? null : r.json();
+}
+
+/** Yetkili isteği (Bearer) ile dosyayı indirir (Excel); JSON olmayan yanıtlar için api() yerine kullanılır. */
+async function dosyaIndir(yol, dosyaAdi) {
+  const o = Oturum.oku();
+  try {
+    const r = await fetch(yol, { headers: o?.token ? { Authorization: `Bearer ${o.token}` } : {} });
+    if (!r.ok) throw new ApiHatasi(r.status, r.status === 403 ? "Bu işlem için yetkiniz yok." : `İndirme başarısız (${r.status}).`);
+    const url = URL.createObjectURL(await r.blob());
+    const a = h("a", { href: url, download: dosyaAdi });
+    document.body.append(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    duyur("basari", "Excel dosyası indirildi.");
+  } catch (e) { hataGoster(e); }
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +172,7 @@ const SAYFALAR = [
   { id: "zimmetim", ad: "Zimmetlerim", ikon: "zimmetim", gorunur: () => true },
   { id: "zimmet", ad: "Demirbaşlar", ikon: "zimmet", gorunur: mudurVeyaYonetici },
   { id: "rapor", ad: "Raporlar", ikon: "rapor", gorunur: yonetici },
+  { id: "denetim", ad: "Denetim kaydı", ikon: "denetim", gorunur: yonetici },
 ];
 
 function menuyuCiz() {
@@ -164,7 +182,7 @@ function menuyuCiz() {
       s.id === "onay" && durum.bekleyen > 0 ? h("span", { class: "sayac" }, durum.bekleyen) : null)));
 }
 
-const YUKLEYICILER = { ozet: ozetSayfasi, izinlerim: izinlerimSayfasi, onay: onaySayfasi, personel: personelSayfasi, zimmetim: zimmetimSayfasi, zimmet: zimmetSayfasi, rapor: raporSayfasi };
+const YUKLEYICILER = { ozet: ozetSayfasi, izinlerim: izinlerimSayfasi, onay: onaySayfasi, personel: personelSayfasi, zimmetim: zimmetimSayfasi, zimmet: zimmetSayfasi, rapor: raporSayfasi, denetim: denetimSayfasi };
 
 async function sayfaAc(id) {
   durum.sayfa = id;
@@ -184,7 +202,7 @@ $("#menu-ac").addEventListener("click", () => $("#yan").classList.toggle("acik")
 async function bekleyenSayisi() {
   if (!mudurVeyaYonetici()) return;
   try {
-    durum.bekleyen = (await api("/api/leaves?status=PENDING&size=1")).totalElements ?? 0;
+    durum.bekleyen = sayfaBilgisi(await api("/api/leaves?status=PENDING&size=1")).totalElements ?? 0;
     menuyuCiz();
   } catch { /* sayaç zorunlu değil */ }
 }
@@ -361,7 +379,7 @@ async function izinlerimSayfasi(sayfa = izinSayfasi) {
       }) }, "İptal et")
     : null;
   $("#icerik").replaceChildren(tabloKarti(null, null, izinTablosu(veri.content, { eylemler: iptal }),
-    veri.totalPages > 1 ? sayfalama(sayfa, veri.totalPages, veri.totalElements, izinlerimSayfasi) : null));
+    sayfaBilgisi(veri).totalPages > 1 ? sayfalama(sayfa, sayfaBilgisi(veri).totalPages, sayfaBilgisi(veri).totalElements, izinlerimSayfasi) : null));
 }
 
 // ---------------------------------------------------------------------------
@@ -372,7 +390,7 @@ let onayFiltre = "PENDING";
 async function onaySayfasi(sayfa = 0) {
   const veri = await api(`/api/leaves?status=${onayFiltre}&page=${sayfa}&size=10`);
   $("#sayfa-alt").textContent = yonetici() ? "Tüm birimlerdeki izin talepleri" : "Birimindeki personelin izin talepleri";
-  if (onayFiltre === "PENDING") { durum.bekleyen = veri.totalElements; menuyuCiz(); }
+  if (onayFiltre === "PENDING") { durum.bekleyen = sayfaBilgisi(veri).totalElements; menuyuCiz(); }
   const karar = (l, onay) => formDialog({
     baslik: onay ? "Talebi onayla" : "Talebi reddet",
     aciklama: `${l.employeeName} · ${TUR_AD[l.type]} · ${aralik(l.startDate, l.endDate)} (${l.businessDays} iş günü)`,
@@ -392,7 +410,7 @@ async function onaySayfasi(sayfa = 0) {
     h("button", { class: k === onayFiltre ? "aktif" : "", onclick: () => { onayFiltre = k; onaySayfasi(); } }, v)));
   $("#icerik").replaceChildren(h("div", {}, filtre),
     tabloKarti(null, null, izinTablosu(veri.content, { kisiGoster: true, eylemler, eylemYok: onayFiltre !== "PENDING" }),
-      veri.totalPages > 1 ? sayfalama(sayfa, veri.totalPages, veri.totalElements, onaySayfasi) : null));
+      sayfaBilgisi(veri).totalPages > 1 ? sayfalama(sayfa, sayfaBilgisi(veri).totalPages, sayfaBilgisi(veri).totalElements, onaySayfasi) : null));
 }
 
 // ---------------------------------------------------------------------------
@@ -422,7 +440,7 @@ async function personelSayfasi(sayfa = 0) {
           gonder: async () => { await api(`/api/employees/${p.id}/deactivate`, { yontem: "PATCH" }); duyur("basari", "Personel pasife alındı."); await personelSayfasi(sayfa); },
         }) }, "Pasife al") : null))))));
   $("#icerik").replaceChildren(tabloKarti(null, null, tablo,
-    veri.totalPages > 1 ? sayfalama(sayfa, veri.totalPages, veri.totalElements, personelSayfasi) : null));
+    sayfaBilgisi(veri).totalPages > 1 ? sayfalama(sayfa, sayfaBilgisi(veri).totalPages, sayfaBilgisi(veri).totalElements, personelSayfasi) : null));
 }
 
 async function personelDetayi(p) {
@@ -511,7 +529,7 @@ async function zimmetSayfasi(sayfa = 0) {
         h("tbody", {}, veri.content.map((a) => h("tr", {}, h("td", {}, h("code", {}, a.assetTag)), h("td", {}, h("strong", {}, a.name)), h("td", {}, a.category),
           h("td", {}, rozet(a.status, ZIMMET_DURUM[a.status])), yonetici() ? h("td", {}, h("div", { class: "eylemler" }, eylemler(a))) : null))))
     : bosDurum("Demirbaş bulunamadı");
-  $("#icerik").replaceChildren(h("div", {}, filtre), tabloKarti(null, null, tablo, veri.totalPages > 1 ? sayfalama(sayfa, veri.totalPages, veri.totalElements, zimmetSayfasi) : null));
+  $("#icerik").replaceChildren(h("div", {}, filtre), tabloKarti(null, null, tablo, sayfaBilgisi(veri).totalPages > 1 ? sayfalama(sayfa, sayfaBilgisi(veri).totalPages, sayfaBilgisi(veri).totalElements, zimmetSayfasi) : null));
 }
 
 function demirbasDialogu() {
@@ -565,6 +583,7 @@ function iadeDialogu(a) {
 async function raporSayfasi() {
   const rapor = await api("/api/reports/leave-usage");
   $("#sayfa-alt").textContent = "Birim bazında yıllık izin kullanımı";
+  $("#ust-eylem").replaceChildren(h("button", { class: "dugme ikincil", onclick: () => dosyaIndir("/api/reports/leave-usage.xlsx", "izin-kullanimi.xlsx") }, "Excel indir"));
   const enCok = Math.max(1, ...rapor.map((r) => r.annualDaysUsed));
   const toplam = (k) => rapor.reduce((t, r) => t + r[k], 0);
   const stat = (etiket, deger, sinif) => h("div", { class: "kart istatistik" }, h("span", { class: "etiket" }, etiket), h("span", { class: `deger ${sinif}` }, String(deger)));
@@ -582,6 +601,60 @@ async function raporSayfasi() {
         h("span", { class: "sag-yazi" }, `${r.annualDaysUsed} gün · ${r.employees} kişi · ${r.pendingRequests} bekleyen`)))) : bosDurum("Rapor verisi yok")));
   // Genişlikler satır içi stil yerine CSSOM ile verilir (CSP satır içi stile izin vermez).
   $$(".grafik-ray > span").forEach((s) => { s.style.width = `${s.dataset.genislik}%`; s.style.background = "linear-gradient(90deg, var(--birincil), var(--mavi))"; });
+}
+
+// ---------------------------------------------------------------------------
+// Denetim kaydı (yönetici)
+// ---------------------------------------------------------------------------
+
+const DENETIM_ISLEM_AD = {
+  LOGIN: "Giriş", LOGIN_FAILED: "Başarısız giriş", EMPLOYEE_CREATED: "Personel eklendi", EMPLOYEE_DEACTIVATED: "Personel pasife alındı",
+  DEPARTMENT_CREATED: "Birim eklendi", LEAVE_REQUESTED: "İzin talep edildi", LEAVE_APPROVED: "İzin onaylandı",
+  LEAVE_REJECTED: "İzin reddedildi", LEAVE_CANCELLED: "İzin iptal edildi", ASSET_CREATED: "Demirbaş eklendi",
+  ASSET_ASSIGNED: "Zimmetlendi", ASSET_RETURNED: "İade alındı", ASSET_RETIRED: "Kayıttan düşüldü",
+};
+durum.denetim = { actor: "", action: "" };
+
+function denetimSorgu() {
+  const p = new URLSearchParams();
+  if (durum.denetim.actor) p.set("actor", durum.denetim.actor);
+  if (durum.denetim.action) p.set("action", durum.denetim.action);
+  return p;
+}
+
+async function denetimSayfasi(sayfa = 0) {
+  const F = durum.denetim;
+  $("#sayfa-alt").textContent = "Kim, ne zaman, ne yaptı";
+  $("#ust-eylem").replaceChildren(h("button", { class: "dugme ikincil", onclick: () => dosyaIndir(`/api/audit/export.xlsx?${denetimSorgu()}`, "denetim-kaydi.xlsx") }, "Excel indir"));
+
+  const p = denetimSorgu();
+  p.set("page", sayfa);
+  p.set("size", 15);
+  const veri = await api(`/api/audit?${p}`);
+  const bilgi = veri.page ?? veri; // Spring Data sayfa bilgisi "page" altında döner
+
+  const actor = h("input", { type: "search", placeholder: "Kullanıcı e-postası…", "aria-label": "Kullanıcı", value: F.actor });
+  actor.addEventListener("keydown", (e) => { if (e.key === "Enter") { F.actor = actor.value.trim(); denetimSayfasi(0); } });
+  const action = h("select", { "aria-label": "İşlem", onchange: (e) => { F.action = e.target.value; denetimSayfasi(0); } },
+    h("option", { value: "" }, "Tüm işlemler"),
+    ...Object.entries(DENETIM_ISLEM_AD).map(([k, v]) => h("option", { value: k, selected: k === F.action }, v)));
+
+  const tablo = veri.content.length
+    ? h("table", {},
+        h("thead", {}, h("tr", {}, ["Zaman", "Kullanıcı", "İşlem", "Kayıt", "Ayrıntı"].map((b) => h("th", {}, b)))),
+        h("tbody", {}, veri.content.map((d) => h("tr", {},
+          h("td", {}, new Date(d.occurredAt).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "medium" })),
+          h("td", {}, h("div", { class: "kisi" }, h("span", { class: "avatar" }, bas(d.actor)), d.actor, d.actorRole ? rozet(d.actorRole, ROL_AD[d.actorRole] ?? d.actorRole) : null)),
+          h("td", {}, DENETIM_ISLEM_AD[d.action] ?? d.action),
+          h("td", {}, d.entityType ? h("code", {}, `${d.entityType} ${d.entityId ?? ""}`.trim()) : h("span", { class: "soluk" }, "–")),
+          h("td", { class: "soluk kucuk-yazi" }, d.details ?? "–")))))
+    : null;
+
+  $("#icerik").replaceChildren(
+    h("div", { class: "arac-cubugu" }, actor, action),
+    tablo ? tabloKarti(null, null, tablo,
+      bilgi.totalPages > 1 ? sayfalama(sayfa, bilgi.totalPages, bilgi.totalElements, denetimSayfasi) : h("div", { class: "sayfalama" }, h("span", { class: "soluk kucuk-yazi" }, `${bilgi.totalElements} kayıt`)))
+      : h("section", { class: "kart" }, bosDurum("Kayıt bulunamadı", "Filtreleri değiştirmeyi deneyin.")));
 }
 
 // ---------------------------------------------------------------------------

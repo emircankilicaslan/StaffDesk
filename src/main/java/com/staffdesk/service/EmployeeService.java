@@ -27,9 +27,11 @@ public class EmployeeService {
     private final PasswordEncoder encoder;
     private final AccessPolicy access;
     private final Clock clock;
+    private final AuditService audit;
 
     public EmployeeService(EmployeeRepository employees, DepartmentRepository departments, PasswordEncoder encoder,
-            AccessPolicy access, Clock clock) {
+            AccessPolicy access, Clock clock, AuditService audit) {
+        this.audit = audit;
         this.employees = employees;
         this.departments = departments;
         this.encoder = encoder;
@@ -44,6 +46,7 @@ public class EmployeeService {
             throw new BusinessRuleException("Bu isimde bir birim zaten var");
         }
         Department d = departments.save(new Department(name));
+        audit.record("DEPARTMENT_CREATED", "Department", d.getId(), d.getName());
         return new DepartmentView(d.getId(), d.getName());
     }
 
@@ -69,6 +72,7 @@ public class EmployeeService {
         Employee e = employees.save(new Employee(r.registrationNo().trim(), r.fullName().trim(), email,
                 encoder.encode(r.password()), r.role(), r.title(), department, r.hireDate(),
                 LocalDateTime.now(clock)));
+        audit.record("EMPLOYEE_CREATED", "Employee", e.getId(), e.getEmail() + " · " + e.getRole());
         return toView(e);
     }
 
@@ -98,6 +102,7 @@ public class EmployeeService {
     public EmployeeView deactivate(Long id) {
         Employee e = find(id);
         e.deactivate();
+        audit.record("EMPLOYEE_DEACTIVATED", "Employee", e.getId(), e.getEmail());
         return toView(e);
     }
 

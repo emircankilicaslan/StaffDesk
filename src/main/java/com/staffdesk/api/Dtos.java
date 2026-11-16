@@ -73,4 +73,8 @@ public final class Dtos {
 
     // --- Rapor
     public record DepartmentLeaveUsage(String department, long employees, long annualDaysUsed, long pendingRequests) {}
+
+    // --- Denetim kaydı
+    public record AuditView(Long id, LocalDateTime occurredAt, String actor, String actorRole, String action,
+            String entityType, String entityId, String details) {}
 }

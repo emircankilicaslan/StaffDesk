@@ -30,9 +30,11 @@ public class AuthService {
     private final StaffDeskProperties props;
     private final Clock clock;
     private final LoginAttemptLimiter limiter;
+    private final AuditService audit;
 
     public AuthService(EmployeeRepository employees, PasswordEncoder encoder, JwtEncoder jwtEncoder,
-            StaffDeskProperties props, Clock clock, LoginAttemptLimiter limiter) {
+            StaffDeskProperties props, Clock clock, LoginAttemptLimiter limiter, AuditService audit) {
+        this.audit = audit;
         this.employees = employees;
         this.encoder = encoder;
         this.jwtEncoder = jwtEncoder;
@@ -51,9 +53,13 @@ public class AuthService {
         boolean ok = encoder.matches(request.password(), e == null ? dummyHash : e.getPasswordHash());
         if (e == null || !ok || !e.isActive()) {
             limiter.recordFailure(key);
+            // Şifre kayda girmez; yalnızca denenen e-posta yazılır. Ayrı işlemde yazılır (aşağıdaki istisna işlemi geri alır).
+            audit.recordIndependent(e == null ? null : e.getId(), key, null, "LOGIN_FAILED", "Employee",
+                    e == null ? null : e.getId(), e != null && !e.isActive() ? "pasif hesap" : null);
             throw new BadCredentialsException("E-posta veya şifre hatalı");
         }
         limiter.recordSuccess(key);
+        audit.recordIndependent(e.getId(), e.getEmail(), e.getRole().name(), "LOGIN", "Employee", e.getId(), null);
 
         Instant now = Instant.now(clock);
         Duration ttl = Duration.ofMinutes(props.jwt().ttlMinutes());
