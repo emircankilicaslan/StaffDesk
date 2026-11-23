@@ -46,7 +46,7 @@ class DisaAktarimTest extends ApiTestSupport {
         return values;
     }
 
-    private static List<String> header(Sheet sheet) {
+    private static List<String> basliklar(Sheet sheet) {
         List<String> h = new ArrayList<>();
         sheet.getRow(0).forEach(c -> h.add(c.getStringCellValue()));
         return h;
@@ -78,7 +78,7 @@ class DisaAktarimTest extends ApiTestSupport {
         try (Workbook wb = xlsx("/api/exports/employees.xlsx?q=Dışa Aktarılan", admin)) {
             Sheet s = wb.getSheetAt(0);
             assertEquals("Personel", s.getSheetName());
-            assertEquals(List.of("Sicil no", "Ad soyad", "E-posta", "Rol", "Unvan", "Birim", "İşe giriş", "Aktif"), header(s));
+            assertEquals(List.of("Sicil no", "Ad soyad", "E-posta", "Rol", "Unvan", "Birim", "İşe giriş", "Aktif"), basliklar(s));
             assertEquals(1, s.getLastRowNum());
             assertEquals("Dışa Aktarılan Müdür", column(s, 1).get(0));
             assertEquals(e.email(), column(s, 2).get(0));
@@ -142,7 +142,7 @@ class DisaAktarimTest extends ApiTestSupport {
         try (Workbook wb = xlsx("/api/exports/assets.xlsx?q=" + "Dışa Laptop", admin)) {
             Sheet s = wb.getSheetAt(0);
             assertEquals(List.of("Demirbaş no", "Ad", "Kategori", "Durum", "Seri no", "Satın alma", "Fiyat (TL)",
-                    "Garanti bitiş", "Zimmetli"), header(s));
+                    "Garanti bitiş", "Zimmetli"), basliklar(s));
             int satir = column(s, 1).indexOf(ad) + 1;
             assertTrue(satir > 0);
             Row r = s.getRow(satir);
@@ -193,7 +193,7 @@ class DisaAktarimTest extends ApiTestSupport {
 
         try (Workbook wb = xlsx("/api/exports/leaves.xlsx?status=ALL&employeeId=" + kisi.id(), admin)) {
             Sheet s = wb.getSheetAt(0);
-            assertEquals(List.of("Personel", "Tür", "Başlangıç", "Bitiş", "İş günü", "Durum", "Karar notu"), header(s));
+            assertEquals(List.of("Personel", "Tür", "Başlangıç", "Bitiş", "İş günü", "Durum", "Karar notu"), basliklar(s));
             assertEquals(2, s.getLastRowNum());
             // başlangıç tarihine göre azalan: önce 22 Ocak
             assertEquals("Hastalık izni", column(s, 1).get(0));
@@ -250,7 +250,7 @@ class DisaAktarimTest extends ApiTestSupport {
         try (Workbook wb = xlsx("/api/exports/assets.xlsx?q=hicbirseyeuymayanmetin", admin)) {
             Sheet s = wb.getSheetAt(0);
             assertEquals(0, s.getLastRowNum());
-            assertFalse(header(s).isEmpty());
+            assertFalse(basliklar(s).isEmpty());
         }
     }
 }
