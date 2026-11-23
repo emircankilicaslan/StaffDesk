@@ -66,7 +66,7 @@ async function sayfa(s, menuAdi, bekle) {
   await cek(s, 'arayuz-onay-kutusu', { fullPage: true });
 
   await sayfa(s, 'Personel', '#icerik table');
-  await s.fill('input[type=search]', 'bilgi');
+  await s.fill('input[type=search]', 'ornek.test');
   await s.selectOption('select[aria-label=Rol]', 'EMPLOYEE');
   await s.keyboard.press('Enter');
   await s.waitForLoadState('networkidle');
