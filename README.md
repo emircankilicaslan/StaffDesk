@@ -11,6 +11,12 @@ Kurumlarda personelin **yıllık izin/mazeret/hastalık izin** süreçlerini ve 
 - **Roller ve yetki:** `ADMIN`, `MANAGER`, `EMPLOYEE`; müdür yalnızca kendi birimindeki personeli görür ve onaylar, kimse kendi talebini onaylayamaz.
 - **Raporlama:** birim bazında yıllık izin kullanımı (doğrudan SQL, `LEFT JOIN` + `GROUP BY`); JSON ve **Excel (.xlsx)** olarak.
 - **Denetim kaydı (audit log):** giriş ve başarısız giriş, personel/birim ekleme, personel pasife alma, izin talep/onay/red/iptal ve zimmet işlemleri (ekleme, zimmetleme, iade, kayıttan düşme) kim tarafından ve ne zaman yapıldığıyla `audit_log` tablosuna yazılır. Yalnızca `ADMIN` sorgular (`/api/audit`: kullanıcı, işlem, tarih süzgeci, sayfalama) ve Excel'e aktarır. Kayıt, asıl değişiklikle **aynı veritabanı işleminde** yazılır (iş geri alınırsa kayıt da kalmaz); parola ve token kayda girmez. Excel çıktısında metin hücreleri düz metin yazılır, `=…` ile başlayan girdi formül olarak çalışmaz.
+- **Rol bazlı özet panosu** (`GET /api/dashboard`): yönetici kurumu, müdür yalnızca kendi birimini, personel yalnızca kendini görür (kapsam sunucuda uygulanır). Aktif personel, bugün izinde olanlar, bekleyen talepler, demirbaş durumları, garantisi yaklaşan demirbaşlar, son 6 ay izin kullanımı, izin türü ve kategori dağılımı; toplulaştırmalar doğrudan SQL ile.
+- **Ekip takvimi** (`GET /api/leaves/calendar?month=yyyy-MM`): onaylı izinlerin aylık görünümü. Personel yalnızca kendi birimindeki onaylı izinleri görür; gerekçe hiçbir rolde takvime sızmaz.
+- **Arama, süzgeç ve sıralama:** personel (ad/e-posta/sicil, rol, durum, birim), demirbaş (etiket/ad/seri no, kategori, durum, garanti bitişi) ve izin talepleri (durum, tür, personel, tarih aralığı) için sayfalı, `LIKE` özel karakterleri kaçırılan, JPA `Specification` tabanlı arama.
+- **Demirbaş ayrıntıları:** seri no, satın alma tarihi ve fiyatı, garanti bitişi; kalan garanti günü hesaplanır ve yaklaşan garanti panoda uyarı olarak gösterilir. Demirbaş bilgileri düzenlenebilir.
+- **Hesap yönetimi:** personel bilgisi/rol/birim güncelleme (müdür rolü birim gerektirir, son aktif yönetici düşürülemez), pasif personeli yeniden etkinleştirme, kullanıcının kendi şifresini değiştirmesi (mevcut şifre doğrulanır; şifre denetim kaydına girmez).
+- **Excel dışa aktarma:** personel, demirbaş ve izin listeleri ekrandaki süzgeçlerle birlikte `.xlsx` olarak indirilir (yalnızca `ADMIN`, her indirme denetim kaydına yazılır).
 - **JWT kimlik doğrulama**, BCrypt şifreleme, RFC 7807 hata yanıtları, doğrulama (Bean Validation), sayfalama, OpenAPI/Swagger (`/swagger-ui.html`, sağ üstteki **Authorize** düğmesiyle JWT girilebilir), sağlık ucu (`/actuator/health`).
 
 ## Web arayüzü
@@ -18,21 +24,29 @@ Uygulama çalışırken kök adres (`/`) rol bazlı bir web arayüzü sunar. Ek 
 
 | Rol | Gördükleri |
 |---|---|
-| **Personel** | Genel bakış (izin bakiyesi halka grafiği), izin talebi ve iptali, üzerindeki zimmetler |
-| **Müdür** | Yukarıdakilere ek: kendi birimindeki talepler için onay kutusu (onayla / gerekçeyle reddet), birim personeli |
-| **Yönetici** | Personel ve birim ekleme, pasife alma, demirbaş ekleme / zimmetleme / iade / kayıttan düşme, birim bazlı izin kullanım raporu (Excel indirme), denetim kaydı (süzgeç, sayfalama, Excel indirme) |
+| **Personel** | Genel bakış (izin bakiyesi halka grafiği, aylık kullanım), ekip takvimi, izin talebi ve iptali, üzerindeki zimmetler, şifre değiştirme |
+| **Müdür** | Yukarıdakilere ek: birim özeti panosu, kendi birimindeki talepler için aranabilir/süzülebilir onay kutusu (onayla / gerekçeyle reddet), birim personeli |
+| **Yönetici** | Kurum özeti panosu, personel ve birim ekleme / düzenleme / pasife alma / yeniden etkinleştirme, demirbaş ekleme / düzenleme / zimmetleme / iade / kayıttan düşme (garanti uyarılarıyla), tüm listeler için arama-süzgeç-sıralama ve Excel indirme, birim bazlı izin kullanım raporu, denetim kaydı |
 
 Güvenlik: metinler `textContent` ile yazılır (`innerHTML` yok), sayfa `Content-Security-Policy` ile sunulur ve satır içi betik/stil kullanmaz; token `sessionStorage`'da tutulur ve sekme kapanınca silinir. Yetki kararları yine sunucuda verilir, arayüz yalnızca yetkili olunan seçenekleri gösterir.
 
 ![Giriş ekranı](docs/screenshots/arayuz-giris.jpg)
 
-![Genel bakış: izin bakiyesi ve son talepler](docs/screenshots/arayuz-genel-bakis.jpg)
+![Yönetici: genel bakış ve kurum özeti](docs/screenshots/arayuz-genel-bakis.jpg)
+
+![Ekip takvimi](docs/screenshots/arayuz-takvim.jpg)
 
 ![Müdür onay kutusu](docs/screenshots/arayuz-onay-kutusu.jpg)
 
-| Personel yönetimi | Demirbaş envanteri |
+| Personel arama ve süzgeç | Demirbaş envanteri (garanti uyarıları) |
 |---|---|
 | ![Personel](docs/screenshots/arayuz-personel.jpg) | ![Demirbaşlar](docs/screenshots/arayuz-demirbas.jpg) |
+
+| Garantisi yaklaşan demirbaşlar | Demirbaş düzenleme |
+|---|---|
+| ![Garanti süzgeci](docs/screenshots/arayuz-demirbas-garanti.jpg) | ![Demirbaş düzenleme](docs/screenshots/arayuz-demirbas-duzenle.jpg) |
+
+![Koyu tema](docs/screenshots/arayuz-koyu-tema.jpg)
 
 ![Birim bazlı izin kullanım raporu](docs/screenshots/arayuz-rapor.jpg)
 
@@ -157,18 +171,26 @@ Tasarım kararları:
 | POST/GET | `/api/employees` | ADMIN / ADMIN, MANAGER |
 | GET | `/api/employees/me`, `/api/employees/{id}` | kendisi, yönetici, birim müdürü |
 | GET | `/api/employees/{id}/leave-balance?year=` | kendisi, yönetici, birim müdürü |
-| PATCH | `/api/employees/{id}/deactivate` | ADMIN |
+| GET | `/api/employees?q=&departmentId=&active=&role=&sort=&desc=&page=&size=` | ADMIN, MANAGER (birim kapsamlı) |
+| PATCH | `/api/employees/{id}` (ad, unvan, birim, rol) | ADMIN |
+| PATCH | `/api/employees/{id}/activate`, `/deactivate` | ADMIN |
+| POST | `/api/auth/change-password` | giriş yapmış (kendi şifresi) |
+| GET | `/api/dashboard` | giriş yapmış (kapsam role göre: ALL / DEPARTMENT / SELF) |
+| GET | `/api/leaves/calendar?month=yyyy-MM` | giriş yapmış (onaylı izinler, birim kapsamlı) |
 | POST | `/api/leaves` | giriş yapmış (kendi adına) |
 | GET | `/api/leaves/mine?page=&size=` | giriş yapmış (sayfalı, en yeni başlangıç önce) |
-| GET | `/api/leaves?status=PENDING` | ADMIN, MANAGER (birim kapsamlı) |
+| GET | `/api/leaves?status=PENDING\|APPROVED\|…\|ALL&type=&employeeId=&q=&from=&to=` | ADMIN, MANAGER (birim kapsamlı) |
 | POST | `/api/leaves/{id}/approve`, `/reject` (isteğe bağlı `{"note": "..."}` gerekçesi) | ADMIN, MANAGER |
 | POST | `/api/leaves/{id}/cancel` | talep sahibi |
-| POST/GET | `/api/assets` | ADMIN / ADMIN, MANAGER |
+| POST | `/api/assets` (seri no, satın alma, fiyat, garanti ile) | ADMIN |
+| GET | `/api/assets?q=&category=&status=&warrantyWithinDays=&sort=&desc=`, `/api/assets/categories` | ADMIN, MANAGER |
+| PATCH | `/api/assets/{id}` | ADMIN |
 | POST | `/api/assets/{id}/assign`, `/return`, `/retire` | ADMIN |
 | GET | `/api/employees/{id}/assets` | kendisi, yönetici, birim müdürü |
 | GET | `/api/reports/leave-usage?year=`, `/api/reports/leave-usage.xlsx?year=` | ADMIN |
 | GET | `/api/audit?actor=&action=&from=&to=&page=&size=` | ADMIN |
 | GET | `/api/audit/export.xlsx` (aynı süzgeçler) | ADMIN |
+| GET | `/api/exports/employees.xlsx`, `/assets.xlsx`, `/leaves.xlsx` (liste süzgeçleriyle) | ADMIN |
 
 ## Çalıştırma
 Gereksinimler: Java 21, Maven, PostgreSQL (veya Docker).
@@ -187,16 +209,18 @@ Veritabanında hiç `ADMIN` yoksa, `ADMIN_EMAIL`/`ADMIN_PASSWORD` ile açılış
 
 ## Test ve CI
 ```bash
-mvn verify      # 68 test
+mvn verify      # TEST_SAYISI test
 ```
 - Birim testleri: hak ediş hesabı, iş günü hesabı, durum makineleri.
 - Uçtan uca testler (`MockMvc`, gerçek Spring bağlamı + Flyway + H2): kimlik doğrulama, rol/kapsam kontrolleri, izin kuralları (çakışma, bakiye, tatil, geçmiş tarih), onay akışı, zimmet yaşam döngüsü, rapor, doğrulama hataları.
 - Denetim kaydı testleri: işlemlerin kullanıcı ve zamanla yazılması, izin akışında talep eden ve karar veren, başarısız girişin denenen e-postayla kaydı ve parolanın kayda girmemesi, yalnızca `ADMIN` erişimi, süzgeç/sayfalama/doğrulama, Excel çıktısında formül enjeksiyonu koruması.
+- Arama ve süzgeç testleri (`PersonelAramaTest`, `DemirbasDetayTest`, `IzinSuzgecVeTakvimTest`): `%`/`_` kaçırma, büyük-küçük harf ve Türkçe karakter, sayfalama ve sıralama sınırları, müdürün birim kapsamının süzgeçle aşılamaması, takvimde rol kapsamı ve gerekçenin sızmaması.
+- Pano ve hesap testleri (`PanoTest`, `HesapYonetimiTest`, `DisaAktarimTest`): rol kapsamlı sayımlar, aylık/tür/kategori toplulaştırmaları, güncelleme kuralları, şifre değiştirme, Excel içeriği ve denetim kaydı.
 - Uygulama ayrıca gerçek PostgreSQL üzerinde (Flyway + Hibernate doğrulaması + rapor ve denetim sorguları + Excel çıktısı) elle denenmiştir.
 - GitHub Actions her push ve pull request'te `mvn verify` çalıştırır.
 
 ## Bilinen sınırlar / sonraki adımlar
-Token yenileme (refresh token) ve oturum kapatma (çıkışta token'ı geçersiz kılma) yok; token süresi dolana kadar kullanılır. Buna karşılık her istekte personelin durumu veritabanından yeniden okunduğu için pasife alınan ya da silinen personelin token'ı hemen reddedilir ve rol değişikliği anında yansır (`ActiveEmployeeJwtConverter`, `deactivatedEmployeesExistingTokenIsRejected` testi). Giriş denemeleri e-posta bazında sınırlıdır (art arda hatalı denemede geçici kilit), ancak sayaç bellekte tutulur ve yalnızca tek uygulama örneği için yeterlidir. Resmi tatiller yapılandırmadan elle girilir. Bildirim (e-posta) ve dosya eki (belge) desteği yok; rapor yalnızca Excel olarak alınabilir (PDF yok).
+Token yenileme (refresh token) ve oturum kapatma (çıkışta token'ı geçersiz kılma) yok; token süresi dolana kadar kullanılır. Buna karşılık her istekte personelin durumu veritabanından yeniden okunduğu için pasife alınan ya da silinen personelin token'ı hemen reddedilir ve rol değişikliği anında yansır (`ActiveEmployeeJwtConverter`, `deactivatedEmployeesExistingTokenIsRejected` testi). Giriş denemeleri e-posta bazında sınırlıdır (art arda hatalı denemede geçici kilit), ancak sayaç bellekte tutulur ve yalnızca tek uygulama örneği için yeterlidir. Resmi tatiller yapılandırmadan elle girilir (2026 ve 2027 tanımlıdır). Bildirim (e-posta) ve dosya eki (belge) desteği yok; rapor yalnızca Excel olarak alınabilir (PDF yok).
 
 **Denetim kaydının sınırları:** Tablo uygulama tarafında yalnızca eklenir, ancak veritabanı düzeyinde güncelleme/silme engellenmemiştir (üretimde uygulama hesabına yalnızca `INSERT`/`SELECT` yetkisi verilmesi önerilir); saklama/arşivleme politikası yoktur. Giriş olayları ayrı bir işlemde yazılır (başarısız girişte istek hata ile bitse de kayıt kalır). Hız sınırı nedeniyle reddedilen (kilitli) giriş denemeleri kayda alınmaz; okuma istekleri de alınmaz.
 

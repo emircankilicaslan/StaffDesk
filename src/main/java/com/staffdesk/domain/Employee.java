@@ -73,6 +73,30 @@ public class Employee {
         this.active = false;
     }
 
+    public void activate() {
+        this.active = true;
+    }
+
+    /** Ad, unvan, birim ve rol güncellemesi; boş (null) alanlar değiştirilmez. */
+    public void updateProfile(String fullName, String title, Department department, Role role) {
+        if (fullName != null) {
+            this.fullName = fullName;
+        }
+        if (title != null) {
+            this.title = title.isBlank() ? null : title;
+        }
+        if (department != null) {
+            this.department = department;
+        }
+        if (role != null) {
+            this.role = role;
+        }
+    }
+
+    public void changePasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
     public Long getId() {
         return id;
     }

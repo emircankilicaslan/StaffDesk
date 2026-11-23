@@ -7,10 +7,11 @@ import java.util.Collection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long> {
+public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long>, JpaSpecificationExecutor<LeaveRequest> {
 
     /** Aynı personelin, verilen aralıkla çakışan (bekleyen/onaylı) başka izni var mı? */
     @Query("""

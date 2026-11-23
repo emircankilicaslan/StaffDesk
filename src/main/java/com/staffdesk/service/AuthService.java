@@ -1,5 +1,6 @@
 package com.staffdesk.service;
 
+import com.staffdesk.api.Dtos.ChangePasswordRequest;
 import com.staffdesk.api.Dtos.LoginRequest;
 import com.staffdesk.api.Dtos.TokenResponse;
 import com.staffdesk.config.StaffDeskProperties;
@@ -42,6 +43,20 @@ public class AuthService {
         this.clock = clock;
         this.limiter = limiter;
         this.dummyHash = encoder.encode("dummy-password");
+    }
+
+    /** Oturumdaki kullanıcının parolasını değiştirir; mevcut parola doğrulanır, yeni parola farklı olmalıdır. */
+    @Transactional
+    public void changePassword(Long employeeId, ChangePasswordRequest r) {
+        Employee e = employees.findById(employeeId).orElseThrow(() -> new NotFoundException("Personel bulunamadı"));
+        if (!encoder.matches(r.currentPassword(), e.getPasswordHash())) {
+            throw new BusinessRuleException("Mevcut parola hatalı");
+        }
+        if (r.currentPassword().equals(r.newPassword())) {
+            throw new BusinessRuleException("Yeni parola mevcut paroladan farklı olmalıdır");
+        }
+        e.changePasswordHash(encoder.encode(r.newPassword()));
+        audit.record("PASSWORD_CHANGED", "Employee", e.getId(), null);
     }
 
     @Transactional(readOnly = true)

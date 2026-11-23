@@ -54,10 +54,22 @@ await api(`/api/leaves/${l6.id}/approve`, 'POST', { note: 'Onaylandı.' }, selin
 await api(`/api/leaves/${l7.id}/approve`, 'POST', null, selin);
 await api(`/api/leaves/${l8.id}/approve`, 'POST', null, admin).catch(() => {});
 
-const varlik = [['LT-0101', 'Dizüstü bilgisayar - ThinkPad T14', 'Dizüstü bilgisayar'], ['LT-0102', 'Dizüstü bilgisayar - ThinkPad T14', 'Dizüstü bilgisayar'], ['LT-0103', 'Dizüstü bilgisayar - MacBook Pro 14', 'Dizüstü bilgisayar'],
-  ['MN-0201', 'Monitör - Dell 27" 4K', 'Monitör'], ['MN-0202', 'Monitör - Dell 27" 4K', 'Monitör'], ['PH-0301', 'Cep telefonu - iPhone 15', 'Telefon'], ['AC-0401', 'Yerleşik dock istasyonu', 'Aksesuar'], ['LT-0104', 'Dizüstü bilgisayar - eski model', 'Dizüstü bilgisayar']];
+const ay = (n) => gun(Math.round(n * 30.4));
+const varlik = [
+  ['LT-0101', 'Dizüstü bilgisayar - ThinkPad T14', 'Dizüstü bilgisayar', 'PF3K81A2', ay(-20), 41900, ay(16)],
+  ['LT-0102', 'Dizüstü bilgisayar - ThinkPad T14', 'Dizüstü bilgisayar', 'PF3K81B7', ay(-20), 41900, ay(16)],
+  ['LT-0103', 'Dizüstü bilgisayar - MacBook Pro 14', 'Dizüstü bilgisayar', 'C02ZK1QMLVDQ', ay(-30), 79500, ay(6)],
+  ['MN-0201', 'Monitör - Dell 27" 4K', 'Monitör', 'CN-0KTC4M', ay(-34), 14800, gun(-12)],
+  ['MN-0202', 'Monitör - Dell 27" 4K', 'Monitör', 'CN-0KTC6P', ay(-34), 14800, gun(34)],
+  ['PH-0301', 'Cep telefonu - iPhone 15', 'Telefon', 'F2LXK9D3Q1', ay(-14), 52900, ay(10)],
+  ['AC-0401', 'Yerleşik dock istasyonu', 'Aksesuar', 'DK-77120', ay(-11), 6400, gun(48)],
+  ['LT-0104', 'Dizüstü bilgisayar - eski model', 'Dizüstü bilgisayar', 'PF1A0042', ay(-70), 28000, ay(-34)],
+  ['PR-0501', 'Ağ yazıcısı - HP LaserJet', 'Yazıcı', null, ay(-8), 9600, ay(28)],
+  ['TB-0601', 'Tablet - iPad Air', 'Tablet', 'DMPXK21', ay(-3), 24900, ay(21)],
+];
 const v = [];
-for (const [assetTag, name, category] of varlik) v.push(await api('/api/assets', 'POST', { assetTag, name, category }, admin));
+for (const [assetTag, name, category, serialNo, purchaseDate, purchasePrice, warrantyEnd] of varlik)
+  v.push(await api('/api/assets', 'POST', { assetTag, name, category, serialNo, purchaseDate, purchasePrice, warrantyEnd }, admin));
 const ver = (i, mail, not) => api(`/api/assets/${v[i].id}/assign`, 'POST', { employeeId: id[mail], note: not }, admin);
 await ver(0, 'zeynep.kaya@ornek.test', 'İşe başlangıç teslimi');
 await ver(1, 'mert.demir@ornek.test', null);

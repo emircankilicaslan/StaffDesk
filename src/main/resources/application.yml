@@ -38,6 +38,23 @@ staffdesk:
     - 2026-05-28
     - 2026-05-29
     - 2026-05-30
+    # 2027: ulusal bayramlar
+    - 2027-01-01
+    - 2027-04-23
+    - 2027-05-01
+    - 2027-05-19
+    - 2027-07-15
+    - 2027-08-30
+    - 2027-10-29
+    # 2027: Ramazan Bayramı (9-11 Mart; takvim yayımlandığında Diyanet ile doğrulayın)
+    - 2027-03-09
+    - 2027-03-10
+    - 2027-03-11
+    # 2027: Kurban Bayramı (16-19 Mayıs; takvim yayımlandığında Diyanet ile doğrulayın)
+    - 2027-05-16
+    - 2027-05-17
+    - 2027-05-18
+    - 2027-05-19
   # Veritabanında hiç ADMIN yoksa açılışta bir yönetici oluşturulur (ikisi de verilirse).
   admin:
     email: ${ADMIN_EMAIL:}

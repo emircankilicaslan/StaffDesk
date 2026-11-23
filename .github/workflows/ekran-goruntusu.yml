@@ -1,0 +1,77 @@
+name: Ekran görüntüleri
+
+# Uygulamayı PostgreSQL ile ayağa kaldırır, demo veriyi gerçek API kurallarından geçirerek yükler
+# ve README'deki görüntüleri tarayıcıdan alır. Elle tetiklenir.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  goruntu:
+    runs-on: ubuntu-latest
+    env:
+      ADMIN_EMAIL: yonetici@ornek.test
+      ADMIN_PASSWORD: ci-goruntu-yonetici-2026
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: staffdesk
+          POSTGRES_PASSWORD: ci-goruntu-parola
+          POSTGRES_DB: staffdesk
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U staffdesk"
+          --health-interval 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Uygulama paketlenir ve başlatılır
+        run: |
+          mvn -B -q -DskipTests package
+          export DB_URL=jdbc:postgresql://localhost:5432/staffdesk DB_USER=staffdesk DB_PASSWORD=ci-goruntu-parola
+          export JWT_SECRET="ci-goruntu-icin-uretilmis-en-az-32-karakterlik-anahtar"
+          nohup java -jar target/staffdesk-1.0.0.jar > uygulama.log 2>&1 &
+          for i in $(seq 1 60); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/actuator/health)" = "200" ]; then echo "uygulama hazır ($i)"; exit 0; fi
+            sleep 3
+          done
+          tail -n 80 uygulama.log; exit 1
+
+      - name: Tarayıcı araçları kurulur
+        working-directory: tools/ekran-goruntusu
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Demo veri yüklenir
+        run: node scripts/demo-verisi.mjs http://localhost:8080
+
+      - name: Ekran görüntüleri alınır
+        working-directory: tools/ekran-goruntusu
+        run: node goruntu.mjs
+
+      - name: Görüntüler depoya işlenir
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          if git diff --cached --quiet; then echo "değişiklik yok"; exit 0; fi
+          git commit -m "Ekran görüntüleri çalışan uygulamadan yeniden üretildi"
+          git push
+
+      - name: Uygulama günlüğü (hata ayıklama)
+        if: failure()
+        run: tail -n 120 uygulama.log

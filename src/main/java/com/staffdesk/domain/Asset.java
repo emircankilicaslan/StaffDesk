@@ -9,6 +9,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "asset")
@@ -31,12 +33,35 @@ public class Asset {
     @Column(nullable = false, length = 20)
     private AssetStatus status = AssetStatus.AVAILABLE;
 
+    @Column(name = "serial_no", length = 100)
+    private String serialNo;
+
+    @Column(name = "purchase_date")
+    private LocalDate purchaseDate;
+
+    @Column(name = "purchase_price", precision = 12, scale = 2)
+    private BigDecimal purchasePrice;
+
+    @Column(name = "warranty_end")
+    private LocalDate warrantyEnd;
+
     protected Asset() {}
 
     public Asset(String assetTag, String name, String category) {
         this.assetTag = assetTag;
         this.name = name;
         this.category = category;
+    }
+
+    /** Ad, kategori ve isteğe bağlı satın alma/garanti bilgilerini günceller (durum değişmez). */
+    public void updateDetails(String name, String category, String serialNo, LocalDate purchaseDate,
+            BigDecimal purchasePrice, LocalDate warrantyEnd) {
+        this.name = name;
+        this.category = category;
+        this.serialNo = serialNo;
+        this.purchaseDate = purchaseDate;
+        this.purchasePrice = purchasePrice;
+        this.warrantyEnd = warrantyEnd;
     }
 
     // Durum geçişleri: AVAILABLE -> ASSIGNED -> AVAILABLE ; AVAILABLE -> RETIRED (geri dönüş yok)
@@ -80,5 +105,21 @@ public class Asset {
 
     public AssetStatus getStatus() {
         return status;
+    }
+
+    public String getSerialNo() {
+        return serialNo;
+    }
+
+    public LocalDate getPurchaseDate() {
+        return purchaseDate;
+    }
+
+    public BigDecimal getPurchasePrice() {
+        return purchasePrice;
+    }
+
+    public LocalDate getWarrantyEnd() {
+        return warrantyEnd;
     }
 }

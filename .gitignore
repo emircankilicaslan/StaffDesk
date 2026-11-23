@@ -5,4 +5,4 @@ target/
 *.iml
 .vscode/
 .env
-.DS_Store
+.DS_Storenode_modules/

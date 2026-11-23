@@ -1,6 +1,7 @@
 package com.staffdesk.service;
 
 import com.staffdesk.api.CurrentUser;
+import com.staffdesk.api.Dtos.CalendarEntry;
 import com.staffdesk.api.Dtos.LeaveBalance;
 import com.staffdesk.api.Dtos.LeaveCreateRequest;
 import com.staffdesk.api.Dtos.LeaveView;
@@ -11,13 +12,22 @@ import com.staffdesk.domain.LeaveType;
 import com.staffdesk.domain.Role;
 import com.staffdesk.repository.EmployeeRepository;
 import com.staffdesk.repository.LeaveRequestRepository;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -121,15 +131,87 @@ public class LeaveService {
     /** Yönetici tüm talepleri, müdür yalnızca kendi birimindekileri görür. */
     @Transactional(readOnly = true)
     public Page<LeaveView> listByStatus(CurrentUser user, LeaveStatus status, Pageable pageable) {
-        if (user.isAdmin()) {
-            return leaves.findByStatus(status, pageable).map(this::toView);
+        return search(user, LeaveFilter.byStatus(status), pageable);
+    }
+
+    /** Süzgeçli liste (durum, tür, personel, ad arama, tarih aralığı). Müdürün birim kapsamı süzgeçten bağımsızdır. */
+    @Transactional(readOnly = true)
+    public Page<LeaveView> search(CurrentUser user, LeaveFilter f, Pageable pageable) {
+        if (f.from() != null && f.to() != null && f.from().isAfter(f.to())) {
+            throw new IllegalArgumentException("Başlangıç tarihi bitişten sonra olamaz");
         }
-        Employee manager = employees.findById(user.id()).orElseThrow(() -> new NotFoundException("Personel bulunamadı"));
-        if (manager.getDepartment() == null) {
-            return Page.empty(pageable);
+        Long scope = null;
+        if (!user.isAdmin()) {
+            Employee manager = employees.findById(user.id()).orElseThrow(() -> new NotFoundException("Personel bulunamadı"));
+            if (manager.getDepartment() == null) {
+                return Page.empty(pageable);
+            }
+            scope = manager.getDepartment().getId();
         }
-        return leaves.findByStatusAndEmployeeDepartmentId(status, manager.getDepartment().getId(), pageable)
-                .map(this::toView);
+        Long departmentScope = scope;
+        String pattern = SearchSupport.pattern(f.q());
+        Specification<LeaveRequest> spec = (root, query, cb) -> {
+            List<Predicate> p = new ArrayList<>();
+            Join<LeaveRequest, Employee> e = root.join("employee");
+            if (departmentScope != null) {
+                p.add(cb.equal(e.join("department", JoinType.LEFT).get("id"), departmentScope));
+            }
+            if (f.status() != null) {
+                p.add(cb.equal(root.get("status"), f.status()));
+            }
+            if (f.type() != null) {
+                p.add(cb.equal(root.get("type"), f.type()));
+            }
+            if (f.employeeId() != null) {
+                p.add(cb.equal(e.get("id"), f.employeeId()));
+            }
+            if (pattern != null) {
+                p.add(cb.like(cb.lower(e.<String>get("fullName")), pattern, SearchSupport.ESCAPE));
+            }
+            if (f.from() != null) {
+                p.add(cb.greaterThanOrEqualTo(root.<LocalDate>get("endDate"), f.from()));
+            }
+            if (f.to() != null) {
+                p.add(cb.lessThanOrEqualTo(root.<LocalDate>get("startDate"), f.to()));
+            }
+            return cb.and(p.toArray(Predicate[]::new));
+        };
+        return leaves.findAll(spec, pageable).map(this::toView);
+    }
+
+    /**
+     * Ekip takvimi: verilen ayla çakışan izinler. Yönetici tüm birimleri (bekleyen dahil), müdür kendi birimini
+     * (bekleyen dahil) görür; personel yalnızca kendi birimindeki <b>onaylı</b> izinleri görür (gerekçe hiçbir
+     * rolde dönmez). Birimi olmayan personel yalnızca kendi izinlerini görür.
+     */
+    @Transactional(readOnly = true)
+    public List<CalendarEntry> calendar(CurrentUser user, YearMonth requested) {
+        YearMonth month = requested == null ? YearMonth.now(clock) : requested;
+        Employee me = employees.findById(user.id()).orElseThrow(() -> new NotFoundException("Personel bulunamadı"));
+        Long departmentScope = user.isAdmin() || me.getDepartment() == null ? null : me.getDepartment().getId();
+        boolean onlyMine = !user.isAdmin() && me.getDepartment() == null;
+        Collection<LeaveStatus> statuses = user.role() == Role.EMPLOYEE ? Set.of(LeaveStatus.APPROVED) : ACTIVE;
+        LocalDate from = month.atDay(1);
+        LocalDate to = month.atEndOfMonth();
+        Specification<LeaveRequest> spec = (root, query, cb) -> {
+            List<Predicate> p = new ArrayList<>();
+            Join<LeaveRequest, Employee> e = root.join("employee");
+            if (departmentScope != null) {
+                p.add(cb.equal(e.join("department", JoinType.LEFT).get("id"), departmentScope));
+            }
+            if (onlyMine) {
+                p.add(cb.equal(e.get("id"), user.id()));
+            }
+            p.add(root.get("status").in(statuses));
+            p.add(cb.lessThanOrEqualTo(root.<LocalDate>get("startDate"), to));
+            p.add(cb.greaterThanOrEqualTo(root.<LocalDate>get("endDate"), from));
+            return cb.and(p.toArray(Predicate[]::new));
+        };
+        return leaves.findAll(spec, Sort.by("startDate").and(Sort.by("id"))).stream()
+                .map(l -> new CalendarEntry(l.getEmployee().getId(), l.getEmployee().getFullName(),
+                        l.getEmployee().getDepartment() == null ? null : l.getEmployee().getDepartment().getName(),
+                        l.getType(), l.getStartDate(), l.getEndDate(), l.getStatus()))
+                .toList();
     }
 
     @Transactional

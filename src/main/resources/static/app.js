@@ -51,7 +51,41 @@ const IKONLAR = {
   zimmet: () => ikon("M3 7l9-4 9 4-9 4z", "M3 12l9 4 9-4", "M3 17l9 4 9-4"),
   rapor: () => ikon("M4 20V10", "M10 20V4", "M16 20v-7", "M22 20H2"),
   denetim: () => ikon("M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2", "M9 3h6v4H9z", "M9 12h6", "M9 16h4"),
+  takvim: () => ikon("M8 3v4M16 3v4M4 9h16", "M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z", "M8 13h2M12 13h2M8 16.5h2"),
 };
+
+/** Çubuk genişlikleri satır içi stil yerine CSSOM ile verilir (CSP satır içi stile izin vermez). */
+function genislikleriUygula(kok = document) {
+  $$("[data-genislik]", kok).forEach((s) => { s.style.width = `${s.dataset.genislik}%`; });
+}
+
+/** Yatay çubuk listesi: [{etiket, deger, yazi?}]. */
+function cubukListesi(satirlar, birim = "") {
+  const en = Math.max(1, ...satirlar.map((s) => s.deger));
+  return h("div", { class: "grafik" }, satirlar.map((s) => h("div", { class: "grafik-satir" },
+    h("span", { class: "grafik-etiket", title: s.etiket }, s.etiket),
+    h("div", { class: "grafik-raylar" }, h("div", { class: "grafik-ray", role: "img", "aria-label": `${s.etiket}: ${s.deger}` },
+      h("span", { class: "dolgu", "data-genislik": s.deger ? Math.max(3, Math.round((s.deger / en) * 100)) : 0 }))),
+    h("span", { class: "sag-yazi" }, s.yazi ?? `${s.deger}${birim}`))));
+}
+
+const ayEtiketi = (ym) => { const [y, a] = ym.split("-").map(Number); return `${AYLAR[a - 1]} ${y}`; };
+
+/** Arama çubuğu: Enter ile uygular. */
+function aramaKutusu(deger, yer, uygula) {
+  const k = h("input", { type: "search", placeholder: yer, "aria-label": yer, value: deger });
+  k.addEventListener("keydown", (e) => { if (e.key === "Enter") uygula(k.value.trim()); });
+  return k;
+}
+function secim(etiket, secenekler, deger, degisti) {
+  return h("select", { "aria-label": etiket, onchange: (e) => degisti(e.target.value) },
+    secenekler.map(([k, v]) => h("option", { value: k, selected: String(k) === String(deger) }, v)));
+}
+function sorguOlustur(nesne) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(nesne)) if (v !== "" && v != null) p.set(k, v);
+  return p;
+}
 /** Spring Data sayfa bilgisi (totalElements, totalPages) yanıtta "page" altında döner. */
 const sayfaBilgisi = (veri) => veri.page ?? veri;
 const bosIkon = () => ikon("M4 4h16v16H4z", "M4 9h16", "M9 9v11");
@@ -160,6 +194,20 @@ function cikis(mesaj) {
 }
 $("#cikis").addEventListener("click", () => cikis());
 
+$("#sifre-degistir").addEventListener("click", () => formDialog({
+  baslik: "Şifreni değiştir", aciklama: "Yeni şifre en az 8 karakter olmalı ve mevcut şifreden farklı olmalı.", onayMetni: "Şifreyi değiştir",
+  alanlar: [
+    alan("Mevcut şifre", h("input", { name: "currentPassword", type: "password", required: true, autocomplete: "current-password" }), true),
+    alan("Yeni şifre", h("input", { name: "newPassword", type: "password", required: true, minlength: "8", maxlength: "72", autocomplete: "new-password" }), true),
+    alan("Yeni şifre (tekrar)", h("input", { name: "tekrar", type: "password", required: true, minlength: "8", maxlength: "72", autocomplete: "new-password" }), true),
+  ],
+  gonder: async (f) => {
+    if (f.get("newPassword") !== f.get("tekrar")) throw new Error("Yeni şifreler eşleşmiyor.");
+    await api("/api/auth/change-password", { yontem: "POST", govde: { currentPassword: f.get("currentPassword"), newPassword: f.get("newPassword") } });
+    duyur("basari", "Şifren değiştirildi.");
+  },
+}));
+
 // ---------------------------------------------------------------------------
 // Gezinme
 // ---------------------------------------------------------------------------
@@ -167,6 +215,7 @@ $("#cikis").addEventListener("click", () => cikis());
 const SAYFALAR = [
   { id: "ozet", ad: "Genel bakış", ikon: "ozet", gorunur: () => true },
   { id: "izinlerim", ad: "İzinlerim", ikon: "izin", gorunur: () => true },
+  { id: "takvim", ad: "Ekip takvimi", ikon: "takvim", gorunur: () => true },
   { id: "onay", ad: "Onay kutusu", ikon: "onay", gorunur: mudurVeyaYonetici },
   { id: "personel", ad: "Personel", ikon: "personel", gorunur: mudurVeyaYonetici },
   { id: "zimmetim", ad: "Zimmetlerim", ikon: "zimmetim", gorunur: () => true },
@@ -182,7 +231,7 @@ function menuyuCiz() {
       s.id === "onay" && durum.bekleyen > 0 ? h("span", { class: "sayac" }, durum.bekleyen) : null)));
 }
 
-const YUKLEYICILER = { ozet: ozetSayfasi, izinlerim: izinlerimSayfasi, onay: onaySayfasi, personel: personelSayfasi, zimmetim: zimmetimSayfasi, zimmet: zimmetSayfasi, rapor: raporSayfasi, denetim: denetimSayfasi };
+const YUKLEYICILER = { ozet: ozetSayfasi, takvim: takvimSayfasi, izinlerim: izinlerimSayfasi, onay: onaySayfasi, personel: personelSayfasi, zimmetim: zimmetimSayfasi, zimmet: zimmetSayfasi, rapor: raporSayfasi, denetim: denetimSayfasi };
 
 async function sayfaAc(id) {
   durum.sayfa = id;
@@ -290,10 +339,11 @@ function halka(bakiye) {
 
 async function ozetSayfasi() {
   const yil = new Date().getFullYear();
-  const [bakiye, izinler, zimmetler] = await Promise.all([
+  const [bakiye, izinler, zimmetler, pano] = await Promise.all([
     api(`/api/employees/${durum.ben.id}/leave-balance?year=${yil}`),
     api("/api/leaves/mine?size=5"),
     api(`/api/employees/${durum.ben.id}/assets`),
+    api("/api/dashboard"),
   ]);
   const uzerimde = zimmetler.filter((z) => !z.returnedAt);
   const saat = new Date().getHours();
@@ -323,7 +373,85 @@ async function ozetSayfasi() {
       tabloKarti("Son izin taleplerim",
         h("button", { class: "dugme ikincil kucuk", onclick: () => sayfaAc("izinlerim") }, "Tümü"),
         izinTablosu(izinler.content, { eylemYok: true, kompakt: true }))),
+    panoBolumu(pano),
   );
+  genislikleriUygula();
+}
+
+/** Rol kapsamlı özet: yönetici kurumu, müdür birimini, personel yalnızca kendini görür. */
+function panoBolumu(p) {
+  const baslik = { ALL: "Kurum özeti", DEPARTMENT: "Birim özeti", SELF: "Aylık izin kullanımım" }[p.scope] ?? "Özet";
+  const stat = (etiket, deger, sinif, not) => h("div", { class: "kart istatistik" },
+    h("span", { class: "etiket" }, etiket), h("span", { class: `deger ${sinif}` }, String(deger)), h("span", { class: "not" }, not));
+  const tumu = p.scope !== "SELF";
+  const ust = !tumu ? null : h("div", { class: "izgara" },
+    stat("Aktif personel", p.activeEmployees, "indigo", p.scope === "ALL" ? "kurum genelinde" : "biriminde"),
+    stat("Bugün izinde", p.onLeaveToday, p.onLeaveToday ? "mavi" : "yesil", "onaylı izinli personel"),
+    stat("Onay bekleyen", p.pendingLeaves, p.pendingLeaves ? "sari" : "yesil", "izin talebi"),
+    p.scope === "ALL" ? stat("Demirbaş (boşta / zimmetli)", `${p.assetsAvailable} / ${p.assetsAssigned}`, "mavi", `${p.assetsRetired} kayıttan düşüldü`) : null,
+    p.scope === "ALL" ? stat("Garantisi bitiyor", p.warrantyExpiring, p.warrantyExpiring ? "sari" : "yesil", "60 gün içinde veya dolmuş") : null);
+  const aylik = h("section", { class: "kart" },
+    h("div", { class: "kart-baslik" }, h("h3", {}, "Son 6 ay · onaylı izin (iş günü)")),
+    cubukListesi(p.monthly.map((m) => ({ etiket: ayEtiketi(m.month), deger: Number(m.businessDays), yazi: `${m.businessDays} gün · ${m.requests} talep` }))));
+  const tur = p.leaveByType.length
+    ? h("section", { class: "kart" }, h("div", { class: "kart-baslik" }, h("h3", {}, "İzin türü dağılımı (bu yıl)")),
+        cubukListesi(p.leaveByType.map((t) => ({ etiket: TUR_AD[t.label] ?? t.label, deger: Number(t.count), yazi: `${t.count} izin` }))))
+    : null;
+  const kategori = p.scope === "ALL" && p.assetsByCategory.length
+    ? h("section", { class: "kart" }, h("div", { class: "kart-baslik" }, h("h3", {}, "Demirbaş kategorileri")),
+        cubukListesi(p.assetsByCategory.slice(0, 8).map((k) => ({ etiket: k.label, deger: Number(k.count), yazi: `${k.count} adet` }))))
+    : null;
+  return h("div", { class: "pano" }, h("h2", { class: "bolum-baslik" }, baslik), ust,
+    h("div", { class: "iki-sutun esit" }, aylik, tur ?? kategori), tur && kategori ? kategori : null);
+}
+
+// ---------------------------------------------------------------------------
+// Ekip takvimi
+// ---------------------------------------------------------------------------
+
+let takvimAy = null;
+const GUN_AD = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+
+async function takvimSayfasi() {
+  if (!takvimAy) takvimAy = bugun().slice(0, 7);
+  const [y, a] = takvimAy.split("-").map(Number);
+  const girdiler = await api(`/api/leaves/calendar?month=${takvimAy}`);
+  $("#sayfa-baslik").textContent = "Ekip takvimi";
+  $("#sayfa-alt").textContent = yonetici() ? "Tüm birimlerdeki onaylı izinler"
+    : durum.ben.department ? `${durum.ben.department} birimindeki onaylı izinler` : "Onaylı izinlerin";
+  const git = (fark) => { const d = new Date(y, a - 1 + fark, 1); takvimAy = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; sayfaAc("takvim"); };
+  $("#ust-eylem").replaceChildren(
+    h("button", { class: "dugme ikincil", "aria-label": "Önceki ay", onclick: () => git(-1) }, "‹"),
+    h("strong", { class: "ay-baslik" }, ayEtiketi(takvimAy)),
+    h("button", { class: "dugme ikincil", "aria-label": "Sonraki ay", onclick: () => git(1) }, "›"),
+    h("button", { class: "dugme ikincil", onclick: () => { takvimAy = bugun().slice(0, 7); sayfaAc("takvim"); } }, "Bugün"));
+
+  const gunSayisi = new Date(y, a, 0).getDate();
+  const ilkGun = (new Date(y, a - 1, 1).getDay() + 6) % 7;
+  const hucreler = GUN_AD.map((g) => h("div", { class: "takvim-gun-baslik" }, g));
+  for (let i = 0; i < ilkGun; i++) hucreler.push(h("div", { class: "takvim-hucre bos-hucre" }));
+  for (let g = 1; g <= gunSayisi; g++) {
+    const iso = `${takvimAy}-${String(g).padStart(2, "0")}`;
+    const haftaSonu = ((ilkGun + g - 1) % 7) >= 5;
+    const o = girdiler.filter((e) => e.startDate <= iso && iso <= e.endDate);
+    hucreler.push(h("div", { class: `takvim-hucre${haftaSonu ? " haftasonu" : ""}${iso === bugun() ? " bugun" : ""}` },
+      h("span", { class: "takvim-no" }, String(g)),
+      o.slice(0, 3).map((e) => h("span", { class: `takvim-etiket t-${e.type.toLowerCase()}`, title: `${e.employeeName} · ${TUR_AD[e.type] ?? e.type}` }, e.employeeName.split(" ")[0])),
+      o.length > 3 ? h("span", { class: "takvim-diger" }, `+${o.length - 3} kişi`) : null));
+  }
+  const kisiler = [...new Map(girdiler.map((e) => [e.employeeId + e.startDate, e])).values()]
+    .sort((x, z) => x.startDate.localeCompare(z.startDate));
+  const liste = kisiler.length
+    ? h("table", {}, h("thead", {}, h("tr", {}, ["Personel", "Birim", "Tür", "Tarih"].map((b) => h("th", {}, b)))),
+        h("tbody", {}, kisiler.map((e) => h("tr", {},
+          h("td", {}, h("div", { class: "kisi" }, h("span", { class: "avatar" }, bas(e.employeeName)), e.employeeName)),
+          h("td", {}, e.department || "–"),
+          h("td", {}, h("span", { class: `takvim-etiket t-${e.type.toLowerCase()}` }, TUR_AD[e.type] ?? e.type)),
+          h("td", {}, aralik(e.startDate, e.endDate))))))
+    : bosDurum("Bu ay izinli personel yok");
+  $("#icerik").replaceChildren(
+    h("section", { class: "kart" }, h("div", { class: "takvim" }, hucreler)),
+    tabloKarti("Bu ayki izinler", null, liste));
 }
 
 // ---------------------------------------------------------------------------
@@ -387,10 +515,12 @@ async function izinlerimSayfasi(sayfa = izinSayfasi) {
 // ---------------------------------------------------------------------------
 
 let onayFiltre = "PENDING";
+const onayF = { type: "", q: "" };
 async function onaySayfasi(sayfa = 0) {
-  const veri = await api(`/api/leaves?status=${onayFiltre}&page=${sayfa}&size=10`);
+  const sorgu = sorguOlustur({ status: onayFiltre, type: onayF.type, q: onayF.q });
+  const veri = await api(`/api/leaves?${sorgu}&page=${sayfa}&size=10`);
   $("#sayfa-alt").textContent = yonetici() ? "Tüm birimlerdeki izin talepleri" : "Birimindeki personelin izin talepleri";
-  if (onayFiltre === "PENDING") { durum.bekleyen = sayfaBilgisi(veri).totalElements; menuyuCiz(); }
+  if (onayFiltre === "PENDING" && !onayF.q && !onayF.type) { durum.bekleyen = sayfaBilgisi(veri).totalElements; menuyuCiz(); }
   const karar = (l, onay) => formDialog({
     baslik: onay ? "Talebi onayla" : "Talebi reddet",
     aciklama: `${l.employeeName} · ${TUR_AD[l.type]} · ${aralik(l.startDate, l.endDate)} (${l.businessDays} iş günü)`,
@@ -406,10 +536,16 @@ async function onaySayfasi(sayfa = 0) {
   const eylemler = (l) => l.status === "PENDING" && l.employeeId !== durum.ben.id
     ? [h("button", { class: "dugme tehlike kucuk", onclick: () => karar(l, false) }, "Reddet"), h("button", { class: "dugme basari-dugme kucuk", onclick: () => karar(l, true) }, "Onayla")]
     : l.status === "PENDING" ? h("span", { class: "soluk kucuk-yazi" }, "Kendi talebini onaylayamazsın") : null;
-  const filtre = h("div", { class: "filtre-cubugu" }, Object.entries(IZIN_DURUM).map(([k, v]) =>
+  if (yonetici()) {
+    $("#ust-eylem").replaceChildren(h("button", { class: "dugme ikincil", onclick: () => dosyaIndir(`/api/exports/leaves.xlsx?${sorgu}`, "izinler.xlsx") }, "Excel indir"));
+  }
+  const filtre = h("div", { class: "filtre-cubugu" }, [["ALL", "Tümü"], ...Object.entries(IZIN_DURUM)].map(([k, v]) =>
     h("button", { class: k === onayFiltre ? "aktif" : "", onclick: () => { onayFiltre = k; onaySayfasi(); } }, v)));
-  $("#icerik").replaceChildren(h("div", {}, filtre),
-    tabloKarti(null, null, izinTablosu(veri.content, { kisiGoster: true, eylemler, eylemYok: onayFiltre !== "PENDING" }),
+  const araclar = h("div", { class: "arac-cubugu" },
+    aramaKutusu(onayF.q, "Personel adı ara…", (q) => { onayF.q = q; onaySayfasi(); }),
+    secim("İzin türü", [["", "Tüm türler"], ...Object.entries(TUR_AD)], onayF.type, (v) => { onayF.type = v; onaySayfasi(); }));
+  $("#icerik").replaceChildren(h("div", {}, filtre), araclar,
+    tabloKarti(null, null, izinTablosu(veri.content, { kisiGoster: true, eylemler, eylemYok: onayFiltre !== "PENDING" && onayFiltre !== "ALL" }),
       sayfaBilgisi(veri).totalPages > 1 ? sayfalama(sayfa, sayfaBilgisi(veri).totalPages, sayfaBilgisi(veri).totalElements, onaySayfasi) : null));
 }
 
@@ -417,15 +553,33 @@ async function onaySayfasi(sayfa = 0) {
 // Personel
 // ---------------------------------------------------------------------------
 
+const SIRA_PERSONEL = [["name|", "Ad (A → Z)"], ["name|desc", "Ad (Z → A)"], ["hireDate|desc", "İşe giriş (yeni → eski)"], ["hireDate|", "İşe giriş (eski → yeni)"]];
+const personelF = { q: "", active: "", role: "", departmentId: "", sira: "name|" };
+
+function personelSorgusu() {
+  const [sort, yon] = personelF.sira.split("|");
+  return sorguOlustur({ q: personelF.q, active: personelF.active, role: personelF.role, departmentId: personelF.departmentId, sort, desc: yon ? "true" : "" });
+}
+
 async function personelSayfasi(sayfa = 0) {
-  const veri = await api(`/api/employees?page=${sayfa}&size=15`);
+  const sorgu = personelSorgusu();
+  if (yonetici() && !durum.birimler.length) durum.birimler = await api("/api/departments");
+  const veri = await api(`/api/employees?${sorgu}&page=${sayfa}&size=15`);
   $("#sayfa-alt").textContent = yonetici() ? "Tüm personel" : "Birimindeki personel";
   if (yonetici()) {
     durum.birimler = await api("/api/departments");
     $("#ust-eylem").replaceChildren(
+      h("button", { class: "dugme ikincil", onclick: () => dosyaIndir(`/api/exports/employees.xlsx?${sorgu}`, "personel.xlsx") }, "Excel indir"),
       h("button", { class: "dugme ikincil", onclick: birimDialogu }, "+ Birim"),
       h("button", { class: "dugme birincil", onclick: personelDialogu }, "+ Yeni personel"));
   }
+  const yenile = () => personelSayfasi(0);
+  const araclar = h("div", { class: "arac-cubugu" },
+    aramaKutusu(personelF.q, "Ad, e-posta veya sicil ara…", (q) => { personelF.q = q; yenile(); }),
+    secim("Durum", [["", "Tüm durumlar"], ["true", "Aktif"], ["false", "Pasif"]], personelF.active, (v) => { personelF.active = v; yenile(); }),
+    secim("Rol", [["", "Tüm roller"], ...Object.entries(ROL_AD)], personelF.role, (v) => { personelF.role = v; yenile(); }),
+    yonetici() ? secim("Birim", [["", "Tüm birimler"], ...durum.birimler.map((b) => [b.id, b.name])], personelF.departmentId, (v) => { personelF.departmentId = v; yenile(); }) : null,
+    secim("Sıralama", SIRA_PERSONEL, personelF.sira, (v) => { personelF.sira = v; yenile(); }));
   const tablo = h("table", {},
     h("thead", {}, h("tr", {}, ["Personel", "Sicil", "Birim", "Unvan", "Rol", "İşe giriş", "Durum", ""].map((b) => h("th", {}, b)))),
     h("tbody", {}, veri.content.map((p) => h("tr", {},
@@ -435,12 +589,41 @@ async function personelSayfasi(sayfa = 0) {
       h("td", {}, rozet(p.active ? "aktif" : "pasif", p.active ? "Aktif" : "Pasif")),
       h("td", {}, h("div", { class: "eylemler" },
         h("button", { class: "dugme ikincil kucuk", onclick: () => personelDetayi(p) }, "Detay"),
+        yonetici() ? h("button", { class: "dugme ikincil kucuk", onclick: () => personelDuzenleDialogu(p, sayfa) }, "Düzenle") : null,
+        yonetici() && !p.active ? h("button", { class: "dugme birincil kucuk", onclick: async () => {
+          try { await api(`/api/employees/${p.id}/activate`, { yontem: "PATCH" }); duyur("basari", "Personel yeniden etkinleştirildi."); await personelSayfasi(sayfa); } catch (e) { hataGoster(e); }
+        } }, "Etkinleştir") : null,
         yonetici() && p.active && p.id !== durum.ben.id ? h("button", { class: "dugme tehlike kucuk", onclick: () => formDialog({
           baslik: "Personeli pasife al", aciklama: `${p.fullName} sisteme giriş yapamaz hale gelecek. Geçmiş kayıtları korunur.`, tehlike: true, onayMetni: "Pasife al",
           gonder: async () => { await api(`/api/employees/${p.id}/deactivate`, { yontem: "PATCH" }); duyur("basari", "Personel pasife alındı."); await personelSayfasi(sayfa); },
         }) }, "Pasife al") : null))))));
-  $("#icerik").replaceChildren(tabloKarti(null, null, tablo,
-    sayfaBilgisi(veri).totalPages > 1 ? sayfalama(sayfa, sayfaBilgisi(veri).totalPages, sayfaBilgisi(veri).totalElements, personelSayfasi) : null));
+  const bilgi = sayfaBilgisi(veri);
+  $("#icerik").replaceChildren(araclar, veri.content.length
+    ? tabloKarti(null, null, tablo, bilgi.totalPages > 1
+        ? sayfalama(sayfa, bilgi.totalPages, bilgi.totalElements, personelSayfasi)
+        : h("div", { class: "sayfalama" }, h("span", { class: "soluk kucuk-yazi" }, `${bilgi.totalElements} kayıt`)))
+    : h("section", { class: "kart" }, bosDurum("Personel bulunamadı", "Arama veya süzgeçleri değiştirmeyi deneyin.")));
+}
+
+function personelDuzenleDialogu(p, sayfa) {
+  const birimSecimi = h("select", { name: "departmentId" }, [h("option", { value: "" }, "Değiştirme"), ...durum.birimler.map((b) => h("option", { value: b.id, selected: b.id === p.departmentId }, b.name))]);
+  formDialog({
+    baslik: "Personeli düzenle", aciklama: `${p.email} · Sicil ${p.registrationNo}`, onayMetni: "Kaydet",
+    alanlar: [
+      alan("Ad soyad", h("input", { name: "fullName", required: true, maxlength: "150", value: p.fullName }), true),
+      alan("Unvan", h("input", { name: "title", maxlength: "100", value: p.title ?? "" })),
+      alan("Rol", h("select", { name: "role" }, Object.entries(ROL_AD).reverse().map(([k, v]) => h("option", { value: k, selected: k === p.role }, v)))),
+      alan("Birim", birimSecimi, true),
+    ],
+    gonder: async (f) => {
+      await api(`/api/employees/${p.id}`, { yontem: "PATCH", govde: {
+        fullName: f.get("fullName").trim(), title: f.get("title") ?? "", role: f.get("role"),
+        departmentId: f.get("departmentId") ? Number(f.get("departmentId")) : null,
+      } });
+      duyur("basari", "Personel bilgileri güncellendi.");
+      await personelSayfasi(sayfa);
+    },
+  });
 }
 
 async function personelDetayi(p) {
@@ -510,12 +693,38 @@ async function zimmetimSayfasi() {
   $("#icerik").replaceChildren(tabloKarti(null, null, tablo));
 }
 
-let zimmetFiltre = "";
+const SIRA_ZIMMET = [["id|", "Eklenme (eski → yeni)"], ["id|desc", "Eklenme (yeni → eski)"], ["name|", "Ad (A → Z)"], ["warrantyEnd|", "Garanti bitişi (yakın → uzak)"], ["purchaseDate|desc", "Satın alma (yeni → eski)"]];
+const GARANTI_SUZGEC = [["", "Tüm garanti durumları"], ["0", "Garantisi dolmuş"], ["30", "30 gün içinde bitecek"], ["60", "60 gün içinde bitecek"], ["90", "90 gün içinde bitecek"]];
+const zimmetF = { q: "", status: "", category: "", warranty: "", sira: "id|" };
+const para = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" });
+
+function zimmetSorgusu() {
+  const [sort, yon] = zimmetF.sira.split("|");
+  return sorguOlustur({ q: zimmetF.q, status: zimmetF.status, category: zimmetF.category, warrantyWithinDays: zimmetF.warranty, sort, desc: yon ? "true" : "" });
+}
+
+/** Garanti hücresi: tarih ve kalan gün; 60 gün ve altı uyarı, geçmişse "doldu" rozeti. */
+function garantiHucresi(a) {
+  if (!a.warrantyEnd) return h("span", { class: "soluk" }, "–");
+  const kalan = a.warrantyDaysLeft;
+  if (a.status === "RETIRED" || kalan == null) return h("span", {}, tarih(a.warrantyEnd));
+  if (kalan < 0) return h("div", {}, tarih(a.warrantyEnd), " ", rozet("rejected", "Doldu"));
+  if (kalan <= 60) return h("div", {}, tarih(a.warrantyEnd), " ", rozet("pending", `${kalan} gün`));
+  return h("span", {}, tarih(a.warrantyEnd));
+}
+
 async function zimmetSayfasi(sayfa = 0) {
-  const veri = await api(`/api/assets?page=${sayfa}&size=15${zimmetFiltre ? `&status=${zimmetFiltre}` : ""}`);
+  const sorgu = zimmetSorgusu();
+  const [veri, kategoriler] = await Promise.all([api(`/api/assets?${sorgu}&page=${sayfa}&size=15`), api("/api/assets/categories")]);
   $("#sayfa-alt").textContent = "Kurumun demirbaş envanteri";
-  if (yonetici()) $("#ust-eylem").replaceChildren(h("button", { class: "dugme birincil", onclick: demirbasDialogu }, "+ Demirbaş ekle"));
+  if (yonetici()) {
+    $("#ust-eylem").replaceChildren(
+      h("button", { class: "dugme ikincil", onclick: () => dosyaIndir(`/api/exports/assets.xlsx?${sorgu}`, "demirbaslar.xlsx") }, "Excel indir"),
+      h("button", { class: "dugme birincil", onclick: () => demirbasDialogu() }, "+ Demirbaş ekle"));
+  }
+  const yenile = () => zimmetSayfasi(0);
   const eylemler = (a) => !yonetici() ? null : [
+    a.status !== "RETIRED" ? h("button", { class: "dugme ikincil kucuk", onclick: () => demirbasDialogu(a, sayfa) }, "Düzenle") : null,
     a.status === "AVAILABLE" ? h("button", { class: "dugme ikincil kucuk", onclick: () => zimmetleDialogu(a) }, "Zimmetle") : null,
     a.status === "ASSIGNED" ? h("button", { class: "dugme ikincil kucuk", onclick: () => iadeDialogu(a) }, "İade al") : null,
     a.status === "AVAILABLE" ? h("button", { class: "dugme tehlike kucuk", onclick: () => formDialog({
@@ -523,27 +732,56 @@ async function zimmetSayfasi(sayfa = 0) {
       gonder: async () => { await api(`/api/assets/${a.id}/retire`, { yontem: "POST" }); duyur("basari", "Demirbaş kayıttan düşüldü."); await zimmetSayfasi(sayfa); },
     }) }, "Kayıttan düş") : null];
   const filtre = h("div", { class: "filtre-cubugu" }, [["", "Tümü"], ...Object.entries(ZIMMET_DURUM)].map(([k, v]) =>
-    h("button", { class: k === zimmetFiltre ? "aktif" : "", onclick: () => { zimmetFiltre = k; zimmetSayfasi(); } }, v)));
-  const tablo = veri.content.length
-    ? h("table", {}, h("thead", {}, h("tr", {}, ["Etiket", "Demirbaş", "Kategori", "Durum", yonetici() ? "" : null].filter((x) => x !== null).map((b) => h("th", {}, b)))),
-        h("tbody", {}, veri.content.map((a) => h("tr", {}, h("td", {}, h("code", {}, a.assetTag)), h("td", {}, h("strong", {}, a.name)), h("td", {}, a.category),
-          h("td", {}, rozet(a.status, ZIMMET_DURUM[a.status])), yonetici() ? h("td", {}, h("div", { class: "eylemler" }, eylemler(a))) : null))))
-    : bosDurum("Demirbaş bulunamadı");
-  $("#icerik").replaceChildren(h("div", {}, filtre), tabloKarti(null, null, tablo, sayfaBilgisi(veri).totalPages > 1 ? sayfalama(sayfa, sayfaBilgisi(veri).totalPages, sayfaBilgisi(veri).totalElements, zimmetSayfasi) : null));
+    h("button", { class: k === zimmetF.status ? "aktif" : "", onclick: () => { zimmetF.status = k; yenile(); } }, v)));
+  const araclar = h("div", { class: "arac-cubugu" },
+    aramaKutusu(zimmetF.q, "Etiket, ad veya seri no ara…", (q) => { zimmetF.q = q; yenile(); }),
+    secim("Kategori", [["", "Tüm kategoriler"], ...kategoriler.map((k) => [k, k])], zimmetF.category, (v) => { zimmetF.category = v; yenile(); }),
+    secim("Garanti", GARANTI_SUZGEC, zimmetF.warranty, (v) => { zimmetF.warranty = v; yenile(); }),
+    secim("Sıralama", SIRA_ZIMMET, zimmetF.sira, (v) => { zimmetF.sira = v; yenile(); }));
+  const basliklar = ["Etiket", "Demirbaş", "Kategori", "Seri no", "Satın alma", "Garanti", "Zimmetli", "Durum", yonetici() ? "" : null].filter((x) => x !== null);
+  const tablo = h("table", {}, h("thead", {}, h("tr", {}, basliklar.map((b) => h("th", {}, b)))),
+    h("tbody", {}, veri.content.map((a) => h("tr", {},
+      h("td", {}, h("code", {}, a.assetTag)),
+      h("td", {}, h("strong", {}, a.name)),
+      h("td", {}, a.category),
+      h("td", { class: "soluk" }, a.serialNo || "–"),
+      h("td", {}, a.purchaseDate ? h("div", {}, tarih(a.purchaseDate), a.purchasePrice != null ? h("div", { class: "soluk kucuk-yazi" }, para.format(a.purchasePrice)) : null) : h("span", { class: "soluk" }, "–")),
+      h("td", {}, garantiHucresi(a)),
+      h("td", {}, a.assignedTo || h("span", { class: "soluk" }, "–")),
+      h("td", {}, rozet(a.status, ZIMMET_DURUM[a.status])),
+      yonetici() ? h("td", {}, h("div", { class: "eylemler" }, eylemler(a))) : null))));
+  const bilgi = sayfaBilgisi(veri);
+  $("#icerik").replaceChildren(h("div", {}, filtre), araclar, veri.content.length
+    ? tabloKarti(null, null, tablo, bilgi.totalPages > 1 ? sayfalama(sayfa, bilgi.totalPages, bilgi.totalElements, zimmetSayfasi)
+        : h("div", { class: "sayfalama" }, h("span", { class: "soluk kucuk-yazi" }, `${bilgi.totalElements} kayıt`)))
+    : h("section", { class: "kart" }, bosDurum("Demirbaş bulunamadı", "Arama veya süzgeçleri değiştirmeyi deneyin.")));
 }
 
-function demirbasDialogu() {
+/** Yeni demirbaş ya da (a verilirse) düzenleme penceresi. */
+function demirbasDialogu(a = null, sayfa = 0) {
+  const duzenle = a != null;
   formDialog({
-    baslik: "Yeni demirbaş", onayMetni: "Ekle",
+    baslik: duzenle ? "Demirbaşı düzenle" : "Yeni demirbaş", onayMetni: duzenle ? "Kaydet" : "Ekle",
+    aciklama: duzenle ? `${a.assetTag} · demirbaş etiketi değiştirilemez` : null,
     alanlar: [
-      alan("Demirbaş etiketi", h("input", { name: "assetTag", required: true, maxlength: "50", placeholder: "LT-0042" })),
-      alan("Kategori", h("input", { name: "category", required: true, maxlength: "50", placeholder: "Dizüstü bilgisayar" })),
-      alan("Ad", h("input", { name: "name", required: true, maxlength: "150" }), true),
+      duzenle ? null : alan("Demirbaş etiketi", h("input", { name: "assetTag", required: true, maxlength: "50", placeholder: "LT-0042" })),
+      alan("Kategori", h("input", { name: "category", required: true, maxlength: "50", placeholder: "Dizüstü bilgisayar", value: a?.category ?? "" })),
+      alan("Ad", h("input", { name: "name", required: true, maxlength: "150", value: a?.name ?? "" }), true),
+      alan("Seri no", h("input", { name: "serialNo", maxlength: "100", value: a?.serialNo ?? "" })),
+      alan("Satın alma tarihi", h("input", { name: "purchaseDate", type: "date", max: bugun(), value: a?.purchaseDate ?? "" })),
+      alan("Fiyat (TL)", h("input", { name: "purchasePrice", type: "number", min: "0", step: "0.01", value: a?.purchasePrice ?? "" })),
+      alan("Garanti bitişi", h("input", { name: "warrantyEnd", type: "date", value: a?.warrantyEnd ?? "" })),
     ],
     gonder: async (f) => {
-      await api("/api/assets", { yontem: "POST", govde: { assetTag: f.get("assetTag").trim(), name: f.get("name").trim(), category: f.get("category").trim() } });
-      duyur("basari", "Demirbaş eklendi.");
-      await zimmetSayfasi();
+      const ortak = {
+        name: f.get("name").trim(), category: f.get("category").trim(), serialNo: f.get("serialNo")?.trim() || null,
+        purchaseDate: f.get("purchaseDate") || null, purchasePrice: f.get("purchasePrice") ? Number(f.get("purchasePrice")) : null,
+        warrantyEnd: f.get("warrantyEnd") || null,
+      };
+      if (duzenle) await api(`/api/assets/${a.id}`, { yontem: "PATCH", govde: ortak });
+      else await api("/api/assets", { yontem: "POST", govde: { assetTag: f.get("assetTag").trim(), ...ortak } });
+      duyur("basari", duzenle ? "Demirbaş güncellendi." : "Demirbaş eklendi.");
+      await zimmetSayfasi(duzenle ? sayfa : 0);
     },
   });
 }
@@ -612,6 +850,8 @@ const DENETIM_ISLEM_AD = {
   DEPARTMENT_CREATED: "Birim eklendi", LEAVE_REQUESTED: "İzin talep edildi", LEAVE_APPROVED: "İzin onaylandı",
   LEAVE_REJECTED: "İzin reddedildi", LEAVE_CANCELLED: "İzin iptal edildi", ASSET_CREATED: "Demirbaş eklendi",
   ASSET_ASSIGNED: "Zimmetlendi", ASSET_RETURNED: "İade alındı", ASSET_RETIRED: "Kayıttan düşüldü",
+  EMPLOYEE_UPDATED: "Personel güncellendi", EMPLOYEE_ACTIVATED: "Personel etkinleştirildi", PASSWORD_CHANGED: "Şifre değiştirildi",
+  ASSET_UPDATED: "Demirbaş güncellendi", EXPORT: "Excel dışa aktarma",
 };
 durum.denetim = { actor: "", action: "" };
 

@@ -5,6 +5,9 @@ import com.staffdesk.api.Dtos.CreateEmployeeRequest;
 import com.staffdesk.api.Dtos.DepartmentView;
 import com.staffdesk.api.Dtos.EmployeeView;
 import com.staffdesk.api.Dtos.LeaveBalance;
+import com.staffdesk.api.Dtos.UpdateEmployeeRequest;
+import com.staffdesk.domain.Role;
+import com.staffdesk.service.EmployeeFilter;
 import com.staffdesk.service.EmployeeService;
 import com.staffdesk.service.LeaveService;
 import jakarta.validation.Valid;
@@ -60,11 +63,43 @@ class EmployeeController {
         return employees.create(request);
     }
 
+    /**
+     * Arama ve süzgeçli personel listesi. sort: id (varsayılan), name, hireDate; desc: true ise ters sıra.
+     * q ad soyad, e-posta ve sicil no içinde aranır; müdür yalnızca kendi birimini görür.
+     */
     @GetMapping("/employees")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     Page<EmployeeView> list(@AuthenticationPrincipal Jwt jwt, @RequestParam(required = false) Long departmentId,
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        return employees.list(CurrentUser.from(jwt), departmentId, pageable(page, size));
+            @RequestParam(required = false) String q, @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) Role role, @RequestParam(defaultValue = "id") String sort,
+            @RequestParam(defaultValue = "false") boolean desc, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Sort order = switch (sort) {
+            case "name" -> Sort.by("fullName");
+            case "hireDate" -> Sort.by("hireDate");
+            case "id" -> Sort.by("id");
+            default -> throw new IllegalArgumentException("sort id, name veya hireDate olmalı");
+        };
+        if (desc) {
+            order = order.descending();
+        }
+        if (!"id".equals(sort)) {
+            order = order.and(Sort.by("id"));
+        }
+        return employees.search(CurrentUser.from(jwt), new EmployeeFilter(q, departmentId, active, role),
+                pageable(page, size, order));
+    }
+
+    @PatchMapping("/employees/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    EmployeeView update(@PathVariable Long id, @Valid @RequestBody UpdateEmployeeRequest request) {
+        return employees.update(id, request);
+    }
+
+    @PatchMapping("/employees/{id}/activate")
+    @PreAuthorize("hasRole('ADMIN')")
+    EmployeeView activate(@PathVariable Long id) {
+        return employees.activate(id);
     }
 
     @GetMapping("/employees/me")

@@ -5,16 +5,21 @@ import com.staffdesk.api.Dtos.CreateDepartmentRequest;
 import com.staffdesk.api.Dtos.CreateEmployeeRequest;
 import com.staffdesk.api.Dtos.DepartmentView;
 import com.staffdesk.api.Dtos.EmployeeView;
+import com.staffdesk.api.Dtos.UpdateEmployeeRequest;
 import com.staffdesk.domain.Department;
 import com.staffdesk.domain.Employee;
 import com.staffdesk.domain.Role;
 import com.staffdesk.repository.DepartmentRepository;
 import com.staffdesk.repository.EmployeeRepository;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,7 +91,13 @@ public class EmployeeService {
     /** Yönetici tüm personeli, müdür yalnızca kendi birimini listeler. */
     @Transactional(readOnly = true)
     public Page<EmployeeView> list(CurrentUser user, Long departmentId, Pageable pageable) {
-        Long scope = departmentId;
+        return search(user, new EmployeeFilter(null, departmentId, null, null), pageable);
+    }
+
+    /** Arama ve süzgeçli liste. Müdürün birim kapsamı süzgeçten bağımsız uygulanır. */
+    @Transactional(readOnly = true)
+    public Page<EmployeeView> search(CurrentUser user, EmployeeFilter f, Pageable pageable) {
+        Long scope = f.departmentId();
         if (!user.isAdmin()) {
             Employee manager = find(user.id());
             if (manager.getDepartment() == null) {
@@ -94,8 +105,62 @@ public class EmployeeService {
             }
             scope = manager.getDepartment().getId();
         }
-        Page<Employee> page = scope == null ? employees.findAll(pageable) : employees.findByDepartmentId(scope, pageable);
-        return page.map(this::toView);
+        Long departmentScope = scope;
+        String pattern = SearchSupport.pattern(f.q());
+        Specification<Employee> spec = (root, query, cb) -> {
+            List<Predicate> p = new ArrayList<>();
+            if (departmentScope != null) {
+                p.add(cb.equal(root.join("department", JoinType.LEFT).get("id"), departmentScope));
+            }
+            if (f.active() != null) {
+                p.add(cb.equal(root.get("active"), f.active()));
+            }
+            if (f.role() != null) {
+                p.add(cb.equal(root.get("role"), f.role()));
+            }
+            if (pattern != null) {
+                p.add(cb.or(
+                        cb.like(cb.lower(root.<String>get("fullName")), pattern, SearchSupport.ESCAPE),
+                        cb.like(cb.lower(root.<String>get("email")), pattern, SearchSupport.ESCAPE),
+                        cb.like(cb.lower(root.<String>get("registrationNo")), pattern, SearchSupport.ESCAPE)));
+            }
+            return cb.and(p.toArray(Predicate[]::new));
+        };
+        return employees.findAll(spec, pageable).map(this::toView);
+    }
+
+    /**
+     * Ad, unvan, birim ve rol güncellemesi (yalnızca yönetici). Müdür rolü birim gerektirir;
+     * son aktif yöneticinin rolü düşürülemez.
+     */
+    @Transactional
+    public EmployeeView update(Long id, UpdateEmployeeRequest r) {
+        Employee e = find(id);
+        Department department = r.departmentId() == null ? null
+                : departments.findById(r.departmentId()).orElseThrow(() -> new NotFoundException("Birim bulunamadı"));
+        Role newRole = r.role() == null ? e.getRole() : r.role();
+        Department effective = department != null ? department : e.getDepartment();
+        if (newRole == Role.MANAGER && effective == null) {
+            throw new BusinessRuleException("Müdür (MANAGER) rolü için birim zorunludur");
+        }
+        if (e.getRole() == Role.ADMIN && newRole != Role.ADMIN && e.isActive()
+                && employees.countByRoleAndActiveTrue(Role.ADMIN) <= 1) {
+            throw new BusinessRuleException("Son aktif yöneticinin rolü değiştirilemez");
+        }
+        if (r.fullName() != null && r.fullName().isBlank()) {
+            throw new BusinessRuleException("Ad soyad boş olamaz");
+        }
+        e.updateProfile(r.fullName() == null ? null : r.fullName().trim(), r.title(), department, r.role());
+        audit.record("EMPLOYEE_UPDATED", "Employee", e.getId(), e.getEmail() + " · " + e.getRole());
+        return toView(e);
+    }
+
+    @Transactional
+    public EmployeeView activate(Long id) {
+        Employee e = find(id);
+        e.activate();
+        audit.record("EMPLOYEE_ACTIVATED", "Employee", e.getId(), e.getEmail());
+        return toView(e);
     }
 
     @Transactional
