@@ -209,7 +209,7 @@ Veritabanında hiç `ADMIN` yoksa, `ADMIN_EMAIL`/`ADMIN_PASSWORD` ile açılış
 
 ## Test ve CI
 ```bash
-mvn verify      # TEST_SAYISI test
+mvn verify      # 202 test
 ```
 - Birim testleri: hak ediş hesabı, iş günü hesabı, durum makineleri.
 - Uçtan uca testler (`MockMvc`, gerçek Spring bağlamı + Flyway + H2): kimlik doğrulama, rol/kapsam kontrolleri, izin kuralları (çakışma, bakiye, tatil, geçmiş tarih), onay akışı, zimmet yaşam döngüsü, rapor, doğrulama hataları.
