@@ -36,6 +36,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@org.springframework.context.annotation.Import(ApiTestSupport.FixedClock.class)
 class AuditLogTest {
 
     private static final AtomicInteger SEQ = new AtomicInteger();
