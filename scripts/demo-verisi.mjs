@@ -33,7 +33,13 @@ for (const [no, ad, email, role, unvan, b, ise] of kisiler)
 
 const t = {};
 for (const [, , email] of kisiler) t[email] = await giris(email, SIFRE);
-const izin = (e, type, startDate, endDate, reason) => api('/api/leaves', 'POST', { type, startDate, endDate, reason }, t[e]);
+// Hafta sonuna denk gelen tarihler en yakın iş gününe kaydırılır (gelecek: ileri, geçmiş: geri).
+const isGunu = (iso) => {
+  const d = new Date(iso + 'T00:00:00Z'), adim = iso < gun(0) ? -1 : 1;
+  while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() + adim);
+  return d.toISOString().slice(0, 10);
+};
+const izin = (e, type, startDate, endDate, reason) => api('/api/leaves', 'POST', { type, startDate: isGunu(startDate), endDate: isGunu(endDate), reason }, t[e]);
 
 const l1 = await izin('zeynep.kaya@ornek.test', 'ANNUAL', gun(24), gun(28), 'Yıl sonu tatili');
 const l2 = await izin('zeynep.kaya@ornek.test', 'ANNUAL', gun(45), gun(47), 'Aile ziyareti');
