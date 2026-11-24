@@ -16,3 +16,17 @@ jobs:
           java-version: 21
           cache: maven
       - run: mvn -B verify
+      - name: Kapsam özeti
+        run: |
+          dosya=target/site/jacoco/jacoco.csv
+          kacan=$(awk -F, 'NR>1 { s += $8 } END { print s }' "$dosya")
+          kapsanan=$(awk -F, 'NR>1 { s += $9 } END { print s }' "$dosya")
+          yuzde=$(awk -v k="$kapsanan" -v m="$kacan" 'BEGIN { printf "%.1f", 100 * k / (k + m) }')
+          echo "### Test kapsamı: %$yuzde (satır)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Satır kapsamı: %$yuzde"
+          # Alt sınır %80; ölçülen oran %96 civarındadır.
+          awk -v k="$kapsanan" -v m="$kacan" 'BEGIN { exit (k / (k + m) >= 0.80 ? 0 : 1) }' || { echo "Kapsam %80 altına düştü: %$yuzde"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-raporu
+          path: target/site/jacoco

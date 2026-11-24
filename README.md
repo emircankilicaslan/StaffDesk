@@ -212,6 +212,7 @@ Veritabanında hiç `ADMIN` yoksa, `ADMIN_EMAIL`/`ADMIN_PASSWORD` ile açılış
 mvn verify      # 202 test
 ```
 - Birim testleri: hak ediş hesabı, iş günü hesabı, durum makineleri.
+**Kapsam:** `mvn verify` JaCoCo raporunu `target/site/jacoco/index.html` altında üretir. CI satır kapsamını iş akışı özetine yazar ve raporu `jacoco-raporu` artifact olarak yükler.
 - Uçtan uca testler (`MockMvc`, gerçek Spring bağlamı + Flyway + H2): kimlik doğrulama, rol/kapsam kontrolleri, izin kuralları (çakışma, bakiye, tatil, geçmiş tarih), onay akışı, zimmet yaşam döngüsü, rapor, doğrulama hataları.
 - Denetim kaydı testleri: işlemlerin kullanıcı ve zamanla yazılması, izin akışında talep eden ve karar veren, başarısız girişin denenen e-postayla kaydı ve parolanın kayda girmemesi, yalnızca `ADMIN` erişimi, süzgeç/sayfalama/doğrulama, Excel çıktısında formül enjeksiyonu koruması.
 - Arama ve süzgeç testleri (`PersonelAramaTest`, `DemirbasDetayTest`, `IzinSuzgecVeTakvimTest`): `%`/`_` kaçırma, büyük-küçük harf ve Türkçe karakter, sayfalama ve sıralama sınırları, müdürün birim kapsamının süzgeçle aşılamaması, takvimde rol kapsamı ve gerekçenin sızmaması.
