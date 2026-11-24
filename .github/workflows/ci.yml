@@ -24,6 +24,8 @@ jobs:
           yuzde=$(awk -v k="$kapsanan" -v m="$kacan" 'BEGIN { printf "%.1f", 100 * k / (k + m) }')
           echo "### Test kapsamı: %$yuzde (satır)" >> "$GITHUB_STEP_SUMMARY"
           echo "Satır kapsamı: %$yuzde"
+          # Alt sınır %80; ölçülen oran %96 civarındadır.
+          awk -v k="$kapsanan" -v m="$kacan" 'BEGIN { exit (k / (k + m) >= 0.80 ? 0 : 1) }' || { echo "Kapsam %80 altına düştü: %$yuzde"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: jacoco-raporu
